@@ -1,6 +1,6 @@
-import threading
+#login_controller.py
 from tkinter import messagebox
-# 수정된 프레임들 가져오기
+
 from attendance_utils.login_ui import LoginFrame
 from attendance_utils.auth_config import SUPABASEAUTH
 
@@ -20,8 +20,8 @@ class LoginApp:
 
     def show_login_frame(self):
         """기존 프레임을 제거하고 로그인 프레임을 화면에 배치"""
-        if self.current_frame: 
-            self.current_frame.destroy()
+        #if self.current_frame: 
+        #    self.current_frame.destroy()
             
         # LoginFrame 생성 시 클릭 이벤트를 본 클래스의 login 메서드로 직접 연결
         self.current_frame = LoginFrame(self.root, on_login_click=self.login)
@@ -34,11 +34,28 @@ class LoginApp:
         pw = pw.strip() if pw else ""
 
         # 1. UI 스레드를 통해 실시간으로 상태 변경 알림 
-        self.root.after(0, lambda: self.current_frame.status.config(text="로그인 중..."))
+        # 1. UI 시작 시 버튼 비활성화 및 상태 업데이트 (연타 차단)
+        # [방어 조치] 프레임이 유효할 때만 비활성화 및 텍스트 변경
+        # 💡 UI 제어 함수 안전성 보강 (객체 유무 및 None 여부 더블 체크)
+        def disable_ui():
+            if self.current_frame and hasattr(self.current_frame, "login_btn") and self.current_frame.login_btn:
+                self.current_frame.login_btn.config(state="disabled")
+            if self.current_frame and hasattr(self.current_frame, "status") and self.current_frame.status:
+                self.current_frame.status.config(text="로그인 중...")
+
+        def enable_ui(msg=None):
+            if self.current_frame and hasattr(self.current_frame, "login_btn") and self.current_frame.login_btn:
+                self.current_frame.login_btn.config(state="normal")
+            if self.current_frame and hasattr(self.current_frame, "status") and self.current_frame.status and msg:
+                self.current_frame.status.config(text=msg)
+
+        # UI 비활성화 실행
+        self.root.after(0, disable_ui)
 
         # 2. 입력값 유효성 기본 검사
         if not admin_id or not pw:
             self.root.after(0, lambda: self.current_frame.status.config(text="ID와 비밀번호를 모두 입력해주세요."))
+            self.root.after(0, enable_ui)
             return
 
         try:
@@ -59,8 +76,9 @@ class LoginApp:
                 # 성공 시 메인 UI 스레드에서 다음 화면(성공 콜백)으로 전환 
                 self.root.after(0, self.on_success)
             else:
+                
                 print("[인증 실패] 세션 정보가 존재하지 않음")
-                # ❌ 기존 코드 오류 수정: 정의되지 않은 error_msg 삭제
+                self.root.after(0, enable_ui)
                 self.root.after(0, lambda: self.current_frame.status.config(text="로그인 실패: 정보를 확인하세요.")) 
 
         except Exception as e:
@@ -71,13 +89,13 @@ class LoginApp:
             # Supabase 에러 메시지에 따른 한국어 다국어 처리
             if "Invalid login credentials" in error_msg:
                 ui_msg = "로그인 실패: ID 또는 비밀번호가 올바르지 않습니다."
+                self.root.after(0, enable_ui, "ID와 비밀번호를 모두 입력해주세요.")
             else:
                 ui_msg = f"오류 발생: {error_msg}"
-                
-            # 안전하게 UI 텍스트 업데이트
-            self.root.after(0, lambda msg=ui_msg: self.current_frame.status.config(text=msg))
+                self.root.after(0, enable_ui)
+            self.root.after(0, lambda msg=ui_msg: enable_ui(msg))
 
     def _default_success_action(self):
         """외부에서 별도의 메인 화면(on_success)을 주입하지 않았을 때 실행되는 독립형 엔딩 함수"""
-        messagebox.showinfo("성공", "로그인에 성공했습니다!\n확인을 누르면 프로그램이 종료됩니다.")
+        messagebox.showinfo("오류", "메인화면이 생성되지 않았습니다.\n확인을 누르면 프로그램이 종료됩니다.")
         self.root.quit()

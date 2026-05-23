@@ -1,4 +1,4 @@
-#main_logic.py
+#main_controller.py
 from tabulate import tabulate
 
 

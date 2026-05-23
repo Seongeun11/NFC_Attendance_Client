@@ -1,4 +1,4 @@
-# main_frame_ui.py
+# main_ui.py
 import tkinter as tk
 import tkinter.ttk as ttk
 import threading
