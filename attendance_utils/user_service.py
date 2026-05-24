@@ -36,7 +36,7 @@ class UserSearchService:
 
     def execute_search(self, keyword: str, only_registered: bool = False, only_active: bool = False) -> list:
         """조건에 맞춰 Supabase에서 회원 목록을 조회하고 필터링된 데이터 리스트를 반환합니다."""
-        print(f"\n[시작] '{keyword}' 검색 중... (등록된 사용자만: {only_registered}, 재학생만: {only_active})", flush=True)
+        #print(f"\n[시작] '{keyword}' 검색 중... (등록된 사용자만: {only_registered}, 재학생만: {only_active})", flush=True)
         
         try:
             # 1. 기본 쿼리 빌드
@@ -82,7 +82,7 @@ class UserSearchService:
             print(f"[Search Service 에러]: {str(e)}", flush=True)
             raise e
         
-# 💡 [새로 분리 완료] NFC 카드 데이터 처리 및 리더기 모니터링 전담 클래스
+# [새로 분리 완료] NFC 카드 데이터 처리 및 리더기 모니터링 전담 클래스
 class NfcCardService:
     def __init__(self, supabase_client):
         self.client = supabase_client
@@ -138,7 +138,7 @@ class NfcCardService:
         self.active_monitor = None
         self.active_observer = None
 
-    # 🚀 [완벽 수정 복구] 진짜 하드웨어 가동 루프를 가동시키는 핵심 비즈니스 로직입니다.
+    # [완벽 수정 복구] 진짜 하드웨어 가동 루프를 가동시키는 핵심 비즈니스 로직입니다.
     def start_hardware_monitor(self, target_user: dict, on_status_change_callback):
         """
         스마트카드 리더기를 가동하여 백그라운드에서 태깅을 감시합니다.
@@ -160,7 +160,7 @@ class NfcCardService:
             if result_status in ['SUCCESS', 'DUPLICATE']:
                 keep_running[0] = False
 
-        # 🚀 카드 통신 및 하드웨어단 에러 발생 시 처리 콜백 함수
+        # 카드 통신 및 하드웨어단 에러 발생 시 처리 콜백 함수
         def handle_hardware_error(error_msg):
             # 메인 UI 리스너의 elif status == 'ERROR' 분기를 직접 타도록 신호를 송신합니다.
             on_status_change_callback('ERROR', target_user, error_msg)

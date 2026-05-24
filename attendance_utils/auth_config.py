@@ -27,7 +27,8 @@ class SupabaseGlobalContext:
             # 만약 Vercel 인증 클라이언트가 아직 비어있다면, 로컬 .env 기반으로 자동 Fallback 초기화
             if cls._client is None: #and SUPABASE_URL and SUPABASE_ANON_KEY:
                 #cls._client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-                print("[인증이 없습니다].")
+                #print("[인증이 없습니다].")
+                pass
             return cls._client
 
 # 기존 코드와의 하위 호환성을 위해 프로퍼티 형태로 바인딩
@@ -38,7 +39,7 @@ class SupabaseAuthManager:
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
         
-        # 🚀 [보안 기본 헤더 세트] Next.js 미들웨어 프리패스용 표준 구성
+        # [보안 기본 헤더 세트] Next.js 미들웨어 프리패스용 표준 구성
         self.headers_template = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
@@ -99,7 +100,7 @@ class SupabaseAuthManager:
                 # 추출한 복수 개의 세션 쿠키들을 하나의 문자열 체인으로 연결합니다. (예: "next-auth.session-token=...; csrf-token=...")
                 combined_cookie = "; ".join(cookie_pairs)
                 
-                # 🚀 중요: 세션 컨텍스트 유실을 막기 위해 템플릿과 세션 헤더 전체에 강제로 Cookie를 주입 고정합니다.
+                # 중요: 세션 컨텍스트 유실을 막기 위해 템플릿과 세션 헤더 전체에 강제로 Cookie를 주입 고정합니다.
                 self.headers_template["Cookie"] = combined_cookie
                 self.session.headers.update({"Cookie": combined_cookie})
                 #print(f"[인증] 원본 멀티 세션 쿠키 동기화 강제 바인딩 완료")
@@ -146,7 +147,7 @@ class SupabaseAuthManager:
                 self.client.auth.set_session(access_token, refresh_token)
                 #print("[인증] 세션 토큰 주입 성공: 관리자 권한 활성화됨")
             else:
-                #print("⚠️ [경고] 토큰이 전달되지 않아 익명 모드로 연결됩니다.")
+                #print("[경고] 토큰이 전달되지 않아 익명 모드로 연결됩니다.")
                 pass
                 
             SupabaseGlobalContext.set_client(self.client)

@@ -101,7 +101,7 @@ class OccurrenceCardUi(tk.LabelFrame):
         self.lbl_missing_alert.pack(pady=(0, 4))
 
         # -------------------------------------------------------------------------
-        # 🚀 대상 회차 NFC 태그 선택 전용 버튼
+        # 대상 회차 NFC 태그 선택 전용 버튼
         # -------------------------------------------------------------------------
         if self.item.get('status') == 'open':
             self.btn_select_tag = tk.Button(
@@ -183,7 +183,7 @@ class OccurrenceCardUi(tk.LabelFrame):
         target_app = self.find_today_operations_app()
         if target_app and hasattr(target_app, 'selected_occurrence_id'):
             target_app.selected_occurrence_id = self.id
-            print(f"[대시보드] active_occurrence_id가 바인딩되었습니다: {self.id}")
+            #print(f"[대시보드] active_occurrence_id가 바인딩되었습니다: {self.id}")
         elif hasattr(root_app, 'selected_occurrence_id'):
             root_app.selected_occurrence_id = self.id
 
@@ -244,9 +244,9 @@ class OccurrenceCardUi(tk.LabelFrame):
                 if self.winfo_exists() and self.master and self.master.winfo_exists():
                     self.master.after(0, self.update_stat_ui)
             except Exception as e:
-                # 🔥 [수정] 에러 메시지를 문자열로 가져와서 lambda의 기본값 인자로 즉시 바인딩
+                # [수정] 에러 메시지를 문자열로 가져와서 lambda의 기본값 인자로 즉시 바인딩
                 err_msg = str(e)
-                # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
         threading.Thread(target=task, daemon=True).start()
     def fetch_missing_data(self):
@@ -258,9 +258,9 @@ class OccurrenceCardUi(tk.LabelFrame):
                 if self.winfo_exists() and self.master and self.master.winfo_exists():
                     self.master.after(0, self.update_stat_ui)
             except Exception as e:
-                # 💡 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
+                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
                     
         threading.Thread(target=task, daemon=True).start()
@@ -316,10 +316,17 @@ class OccurrenceCardUi(tk.LabelFrame):
             if w.winfo_exists(): w.destroy()
         if self.btn_toggle_att.winfo_exists(): self.btn_toggle_att.config(text="출석 상세 보기")
         if self.btn_toggle_mis.winfo_exists(): self.btn_toggle_mis.config(text="미출석 목록 보기")
+        #자식이 없으므로 컨테이너 프레임 자체를 화면 배치에서 일시 제외 (높이 0으로 축소 유도)
+        self.table_container.pack_forget()
         self.current_expanded = None
+        #부모 및 스크롤 캔버스단까지 레이아웃 크기 재계산을 강제 적용
+        self.update_idletasks()
 
     def render_attendance_table(self):
         if not self.winfo_exists() or not self.table_container.winfo_exists(): return
+
+        #테이블을 그리기 직전에 컨테이너를 다시 화면에 배치시킴
+        self.table_container.pack(fill="x", pady=5)
         if not self.attendance_items:
             tk.Label(self.table_container, text="출석 상세 데이터가 없습니다.", fg="#94a3b8").pack()
             return
@@ -339,14 +346,14 @@ class OccurrenceCardUi(tk.LabelFrame):
         tree.column("check_time", width=150, anchor="center")
 
         for att in self.attendance_items:
-            # 💡 [해결 1] 조인된 profiles 딕셔너리에서 full_name과 student_id 안전하게 추출
+            # [해결 1] 조인된 profiles 딕셔너리에서 full_name과 student_id 안전하게 추출
             profiles = att.get("profiles") or {}
             full_name = profiles.get("full_name", "-")
             student_id = profiles.get("student_id", "-")
 
             fmt_as = format_att_status(att.get("status")) if 'format_att_status' in globals() else att.get("status")
             
-            # 💡 [해결 2] UTC 시간 문자열이 넘어올 경우 KST로 변환하여 포맷팅
+            # [해결 2] UTC 시간 문자열이 넘어올 경우 KST로 변환하여 포맷팅
             raw_check_time = att.get("check_time")
             if raw_check_time and 'parse_iso_time' in globals():
                 # 만약 DB에서 UTC로 넘어오더라도 안전하게 KST 문자열로 디코딩 후 변환 처리
@@ -365,6 +372,8 @@ class OccurrenceCardUi(tk.LabelFrame):
 
     def render_missing_table(self):
         if not self.winfo_exists() or not self.table_container.winfo_exists(): return
+        #테이블을 그리기 직전에 컨테이너를 다시 화면에 배치시킴
+        self.table_container.pack(fill="x", pady=5)
         if not self.missing_items:
             tk.Label(self.table_container, text="미출석 인원이 없습니다.", fg="#94a3b8").pack()
             return
@@ -404,7 +413,7 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         
         self.init_ui()
         self.start_nfc_service()
-        # 💡 [수정] 프레임 구조일 때는 protocol 속성이 없으므로 예외 처리로 우회시킵니다.
+        # [수정] 프레임 구조일 때는 protocol 속성이 없으므로 예외 처리로 우회시킵니다.
         try:
             if hasattr(self, "protocol"):
                 self.protocol("WM_DELETE_WINDOW", self.on_close_window)
@@ -442,7 +451,7 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         tk.Label(header_frame, text=desc_text, fg="#666666", justify="left", anchor="w", font=("Arial", 9)).pack(anchor="w", pady=5)
 
         # --- 전역 실시간 NFC 알림 상태 바 추가 ---
-        self.lbl_noti = tk.Label(self.scrollable_frame, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
+        self.lbl_noti = tk.Label(self.scrollable_frame,width=40, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
         self.lbl_noti.pack(fill="x", pady=5)
 
         # --- 상단 요약 대시보드 그리드 영역 ---
@@ -489,19 +498,19 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         try:
             self.nfc_observer = NFCTagObserver(
                 on_uuid_detected=self.handle_nfc_signal_received, 
-                on_error_detected=self.handle_nfc_error_received  # 🚀 에러 콜백 추가
+                on_error_detected=self.handle_nfc_error_received  # 에러 콜백 추가
             )
             
             self.nfc_monitor = CardMonitor()
             self.nfc_monitor.addObserver(self.nfc_observer)
             self.set_global_noti("NFC 리더기 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
         except Exception as e:
-            # 💡 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
+            # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
             err_msg = str(e)
-            # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+            # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
             self.after(0, lambda msg=err_msg: self.set_global_noti(f"NFC 서비스 초기화 실패 (리더기 연결 확인): {msg}", "error"))
             
-     # 🚀 백그라운드 하드웨어 스레드에서 들어오는 에러 메시지를 안전하게 UI 스레드로 토스하는 함수
+     # 백그라운드 하드웨어 스레드에서 들어오는 에러 메시지를 안전하게 UI 스레드로 토스하는 함수
     def handle_nfc_error_received(self, error_msg):
         # Tkinter의 Thread-safe 처리를 위해 after 사용 필수
         self.after(0, lambda msg=error_msg: self.set_global_noti(f"⚠️ 하드웨어 에러: {msg}", "error"))       
@@ -524,9 +533,9 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
                 self.after(0, lambda: self.set_global_noti(msg, "success"))
                 self.after(0, self.refresh_selected_card_data)
             except Exception as e:
-                # 💡 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
+                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
         threading.Thread(target=task, daemon=True).start()
 
@@ -574,9 +583,9 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
                 
                 self.after(0, self.render_dashboard_ui)
             except Exception as e:
-                # 💡 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
+                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.after(0, lambda: self.set_global_notification(msg, "error")))
                 
             finally:
@@ -600,9 +609,9 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
                 self.after(0, lambda: self.set_global_notification(msg, "success"))
                 self.after(0, self.render_dashboard_ui)
             except Exception as e:
-                 # 💡 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
+                 # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # 💡 lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
+                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.after(0, lambda: self.after(0, lambda: self.set_global_notification(msg, "error"))))
                 
             finally:

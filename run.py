@@ -14,10 +14,10 @@ def mainapp():
         root.geometry("400x300") 
         root.resizable(False, False)
 
-        # 🚀 LoginApp 인스턴스를 변수에 할당하여 참조할 수 있도록 설정
+        # LoginApp 인스턴스를 변수에 할당하여 참조할 수 있도록 설정
         login_app = LoginApp(root, on_success=None)
 
-        # 🛠️ 로그인 성공 시 실행할 콜백 함수 정의
+        # 로그인 성공 시 실행할 콜백 함수 정의
         def succeeded():
             #messagebox.showinfo("성공", "로그인에 성공했습니다!\n메인 대시보드로 전환합니다.")
             supabase_client = SupabaseGlobalContext.get_client()
@@ -44,7 +44,7 @@ def mainapp():
         root.mainloop()
 
     except Exception as e:
-        print(f"[치명적 구동 에러] 시스템 초기화 실패: {e}")
+        messagebox.showerror(f"[치명적 구동 에러] 시스템 초기화 실패: {e}")
 
 if __name__ == "__main__":
     mainapp()

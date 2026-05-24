@@ -12,7 +12,7 @@ class NFCTagObserver(CardObserver):
         super().__init__()
         self.last_uuid = None
         self.on_uuid_detected = on_uuid_detected  # 메인 프로그램으로 값을 보낼 채널
-        self.on_error_detected = on_error_detected  # 🚀 추가: 통신 에러 발생 시 콜백 채널
+        self.on_error_detected = on_error_detected  # 추가: 통신 에러 발생 시 콜백 채널
         self.last_touch_time = 0  # 마지막으로 카드가 태그된 시간 저장
     def update(self, observable, actions):
         """카드가 연결되거나 해제될 때 자동으로 호출되는 콜백 메서드"""
@@ -42,7 +42,7 @@ class NFCTagObserver(CardObserver):
                         return
 
                     if current_uuid != self.last_uuid:
-                        print(f"[인식 완료] 태그 UUID: {current_uuid}")
+                        #print(f"[인식 완료] 태그 UUID: {current_uuid}")
                         self.last_uuid = current_uuid
                         # 추가: 콜백 함수가 등록되어 있다면, 찾은 UUID를 담아 호출합니다.
                         if self.on_uuid_detected:
@@ -53,13 +53,13 @@ class NFCTagObserver(CardObserver):
 
             except Exception as e:
                 error_msg = str(e)
-                print(f"[통신 에러] 카드 인식 중 오류 발생: {error_msg}")
-                # 🚀 중요: 에러가 발생했음을 서비스 및 메인 UI 리스너 채널로 응답을 던져줍니다.
+                #print(f"[통신 에러] 카드 인식 중 오류 발생: {error_msg}")
+                # 중요: 에러가 발생했음을 서비스 및 메인 UI 리스너 채널로 응답을 던져줍니다.
                 if self.on_error_detected:
                     self.on_error_detected(error_msg)
 
         # [CASE 2] 카드가 리더기에서 떨어졌을 때
         for card in removed_cards:
             if self.last_uuid is not None:
-                print("[알림] 태그가 리더기에서 떨어졌습니다.")
+                #print("[알림] 태그가 리더기에서 떨어졌습니다.")
                 self.last_uuid = None

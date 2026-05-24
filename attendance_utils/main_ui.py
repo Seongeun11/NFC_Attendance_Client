@@ -11,7 +11,7 @@ class MainFrame(tk.Frame):
         self.parent = parent
         self.controller = None  # app.py 등에서 동적으로 바인딩받을 변수
         
-        # 📌 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
+        # 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
         self.parent.title("NFC 관리자 통합 대시보드")
         self.parent.geometry("620x860")  
 
@@ -69,18 +69,19 @@ class MainFrame(tk.Frame):
         tk.Button(btn_bar, text="NFC 카드 등록", command=on_register_click).pack(side="right", padx=5)
 
         # -------------------------------------------------------------------------
-        # ⭐ [탭 2] 출석 탭 내부에 attendance_UI 전체(TodayOperationsApp) 임포트 연동
+        # [탭 2] 출석 탭 내부에 attendance_UI 전체(TodayOperationsApp) 임포트 연동
         # -------------------------------------------------------------------------
         frame2 = tk.Frame(self, bg="#f9fafb")
         self.notebook.add(frame2, text="출석 현황 대시보드")
         
-        # 🚀 [핵심 처리]: TodayOperationsApp을 인스턴스화하되, frame2를 부모(parent)로 주입합니다.
+        # [핵심 처리]: TodayOperationsApp을 인스턴스화하되, frame2를 부모(parent)로 주입합니다.
         # 독립형 창이 아닌 '내장 프레임 위젯'으로 안정적으로 가두기 위한 바인딩입니다.
         self.attendance_app_frame = TodayOperationsApp(parent=frame2)
         self.attendance_app_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
         # 탭이 클릭되어 전환될 때 실시간 동기화 호출용 바인딩
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_switched)
+        
 
     def link_controller(self, controller):
         """외부 비즈니스 DB 컨트롤러 자원을 내장된 출석 전체 프레임에 전파 연결합니다."""
@@ -89,7 +90,7 @@ class MainFrame(tk.Frame):
         # TodayOperationsApp 프레임에 컨트롤러 주입
         if hasattr(self.attendance_frame_layout_check(), "controller"):
             self.attendance_frame_layout_check().controller = controller
-            print("[시스템] attendance_UI 전체 프레임에 DB 컨트롤러 주입 완료.")
+            #print("[시스템] attendance_UI 전체 프레임에 DB 컨트롤러 주입 완료.")
             
             # 초기 로드 시 대시보드 새로고침 유도
             self.safe_refresh_dashboard()
@@ -105,14 +106,15 @@ class MainFrame(tk.Frame):
             try:
                 target.refresh_today_dashboard()
             except Exception as e:
-                print(f"[대시보드 경고] 새로고침 중 오류 발생: {e}")
+                #print(f"[대시보드 경고] 새로고침 중 오류 발생: {e}")
+                pass
 
     def on_tab_switched(self, event):
         """사용자가 '출석 현황 대시보드' 탭을 활성화할 때마다 최신 출석 리스트를 백엔드와 강제 동기화"""
         try:
             selected_title = self.notebook.tab(self.notebook.select(), "text").strip()
             if "출석" in selected_title:
-                print("[이벤트] 출석 대시보드 탭 감지 - 최신 DB 동기화 스레드 가동")
+                #print("[이벤트] 출석 대시보드 탭 감지 - 최신 DB 동기화 스레드 가동")
                 # 무거운 Supabase 통신으로 인한 UI 멈춤 방지를 위해 데몬 스레드로 새로고침 처리
                 threading.Thread(target=self.safe_refresh_dashboard, daemon=True).start()
         except Exception:
