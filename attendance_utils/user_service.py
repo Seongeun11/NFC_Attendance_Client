@@ -2,7 +2,6 @@
 import time
 from smartcard.CardMonitoring import CardMonitor
 from attendance_utils.nfc_tag_observer import NFCTagObserver
-from attendance_utils.auth_config import SupabaseAuthManager
 
 class AuthService:
     def __init__(self,supabase_client):
@@ -23,11 +22,11 @@ class AuthService:
             })
             if result.user:
                 #supabase_client = auth_manager.login_to_web(result)
-                print("관리자 인증 완료", flush=True)
+                #print("관리자 인증 완료", flush=True)
                 return True
             return False
         except Exception as e:
-            print(f"로그인 실패 레벨 에러: {str(e)}", flush=True)
+            #print(f"로그인 실패 레벨 에러: {str(e)}", flush=True)
             return False
         
 class UserSearchService:
@@ -79,7 +78,7 @@ class UserSearchService:
             return filtered_users
 
         except Exception as e:
-            print(f"[Search Service 에러]: {str(e)}", flush=True)
+            #print(f"[Search Service 에러]: {str(e)}", flush=True)
             raise e
         
 # [새로 분리 완료] NFC 카드 데이터 처리 및 리더기 모니터링 전담 클래스
@@ -96,7 +95,7 @@ class NfcCardService:
             self.client.table("nfc_cards").delete().eq("profiles_id", profiles_id).execute()
             return True
         except Exception as e:
-            print(f"[NfcCardService] 카드 삭제 에러: {e}", flush=True)
+            #print(f"[NfcCardService] 카드 삭제 에러: {e}", flush=True)
             return False
 
     def check_and_register_card(self, target_user: dict, uid: str) -> str:
@@ -124,14 +123,14 @@ class NfcCardService:
             self.current_target = None # 등록 완료 후 타겟 초기화
             return 'SUCCESS'
         except Exception as e:
-            print(f"[NfcCardService] 카드 등록 중 예외 발생: {e}", flush=True)
+            #print(f"[NfcCardService] 카드 등록 중 예외 발생: {e}", flush=True)
             return 'FAILED'
 
     def cleanup_monitor(self):
         """실행 중인 백그라운드 리더기 자원을 안전하게 해제합니다."""
         if self.active_monitor and self.active_observer:
             try:
-                print("[시스템] 백그라운드 NFC 모니터링 옵저버를 제거합니다.")
+                #print("[시스템] 백그라운드 NFC 모니터링 옵저버를 제거합니다.")
                 self.active_monitor.deleteObserver(self.active_observer)
             except Exception:
                 pass

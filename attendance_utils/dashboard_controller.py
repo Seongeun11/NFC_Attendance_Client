@@ -1,7 +1,6 @@
 #dashboard_controller.py
 
 from datetime import datetime, timedelta, timezone
-#from attendance_utils.auth_config import SupabaseAuthManager, SUPABASEAUTH
 
 # KST (UTC+9) 시간대 정의
 KST = timezone(timedelta(hours=9))
@@ -211,14 +210,14 @@ class AttendanceController:
             now = datetime.now(KST)
             attendance_date = now.strftime("%Y-%m-%d")
 
-            # 🚀 원상 복구: 기존 스펙 그대로 .eq("nfc_id", nfc_uid) 조회 사용
+            # 원상 복구: 기존 스펙 그대로 .eq("nfc_id", nfc_uid) 조회 사용
             # 단, single()을 지우고 execute()를 사용하여 데이터가 없을 때의 'cannot coerce' 크래시를 원천 방지합니다.
             nfc_res = self.client.table("nfc_cards")\
                 .select("profiles_id, nfc_status")\
                 .eq("nfc_id", nfc_uid)\
                 .execute()
             
-            # 🚀 중요 처리: 카드가 아예 등록 안 되어 빈 배열([])이 반환되면 커스텀 에러 발생
+            # 중요 처리: 카드가 아예 등록 안 되어 빈 배열([])이 반환되면 커스텀 에러 발생
             if not nfc_res.data:
                 raise Exception("등록되지 않은 카드입니다.")
             

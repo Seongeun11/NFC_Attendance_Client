@@ -3,7 +3,6 @@
 import threading
 # 수정된 프레임들 가져오기
 from attendance_utils.main_ui import MainFrame
-from attendance_utils.auth_config import SUPABASEAUTH
 from attendance_utils.user_service import AuthService, UserSearchService, NfcCardService
 from attendance_utils.dashboard_controller import AttendanceController
 from attendance_utils.auth_config import SupabaseGlobalContext
@@ -171,7 +170,7 @@ class NfcApp:
                     
             # 안전하게 메인 UI 스레드에서 실행
             self.root.after(0, update_ui_delete_success)
-            print(f"{user_name} 카드 데이터 삭제 완료", flush=True)
+            #print(f"{user_name} 카드 데이터 삭제 완료", flush=True)
 
         except Exception as e:
             #print(f"[delete_user 함수 에러 발생]: {str(e)}", flush=True)
@@ -213,7 +212,7 @@ class NfcApp:
         
         #print(f"[NFC 감지됨] 값 = {uid} / 대상자 = {target['full_name']}", flush=True)
         try:
-            # 💡 로컬 캐시 유실 대비를 위해 실시간으로 싱글톤 컨텍스트 재확인 후 최신 클라이언트로 통신
+            # 로컬 캐시 유실 대비를 위해 실시간으로 싱글톤 컨텍스트 재확인 후 최신 클라이언트로 통신
             active_client = SupabaseGlobalContext.get_client()
             
             # [Pylance 에러 치유] active_client와 self.client가 None인지 명시적으로 방어 체크
@@ -275,7 +274,7 @@ class NfcApp:
         index = selected[0] if selected else None
         
         if status == 'SUCCESS':
-            print(f"[NFC 감지됨] 값 = {uid_or_error} / 대상자 = {target['full_name']} 등록 완료", flush=True)
+            #print(f"[NFC 감지됨] 값 = {uid_or_error} / 대상자 = {target['full_name']} 등록 완료", flush=True)
             def update_ui_success():
                 if self.current_frame is None: return
                 self.current_frame.status.config(text=f"{target['full_name']} 등록 완료")
@@ -295,7 +294,7 @@ class NfcApp:
         #[오류 메시지 대시보드 출력 보완 및 버그 수정]
         elif status == 'ERROR':
             error_msg = str(uid_or_error)
-            print(f"[통신 에러 조치] UI 출력 및 대시보드 로그 전송: {error_msg}", flush=True)
+            #print(f"[통신 에러 조치] UI 출력 및 대시보드 로그 전송: {error_msg}", flush=True)
             
             def update_ui_error():
                 notified = False

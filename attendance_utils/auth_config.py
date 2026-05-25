@@ -1,7 +1,7 @@
 import os
 import requests
 import threading
-from typing import Optional  # 👈 Optional 타입 힌트 추가
+from typing import Optional  # Optional 타입 힌트 추가
 #from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -13,16 +13,16 @@ from supabase import create_client, Client
 
 # 🚀 [표준 변경] 기존 하드코딩 전역 변수를 가변형 전역 싱글톤 객체로 캡슐화
 class SupabaseGlobalContext:
-    _client: Optional[Client] = None  # 👈 [교정] None 대입이 가능하도록 Optional 선언
+    _client: Optional[Client] = None  # [교정] None 대입이 가능하도록 Optional 선언
     _lock = threading.Lock()
 
     @classmethod
-    def set_client(cls, client: Optional[Client]):  # 👈 [교정] None 대입 허용
+    def set_client(cls, client: Optional[Client]):  # [교정] None 대입 허용
         with cls._lock:
             cls._client = client
 
     @classmethod
-    def get_client(cls) -> Optional[Client]:  # 👈 [교정] 반환 타입에 None 허용
+    def get_client(cls) -> Optional[Client]:  # [교정] 반환 타입에 None 허용
         with cls._lock:
             # 만약 Vercel 인증 클라이언트가 아직 비어있다면, 로컬 .env 기반으로 자동 Fallback 초기화
             if cls._client is None: #and SUPABASE_URL and SUPABASE_ANON_KEY:
@@ -53,7 +53,7 @@ class SupabaseAuthManager:
         }
         self.session.headers.update(self.headers_template)
         
-        self.client: Optional[Client] = None  # 👈 [교정] None 대입이 가능하도록 Optional 선언
+        self.client: Optional[Client] = None  # [교정] None 대입이 가능하도록 Optional 선언
         self.cached_email = None
         self.cached_password = None
 
@@ -81,7 +81,7 @@ class SupabaseAuthManager:
             if raw_headers and hasattr(raw_headers, 'getlist'):
                 cookies = raw_headers.getlist("Set-Cookie")
             else:
-                # 👈 [교정] response.headers는 getlist가 없으므로 raw.headers를 안전하게 검사하거나 딕셔너리 추출 방식으로 에러 우회
+                # [교정] response.headers는 getlist가 없으므로 raw.headers를 안전하게 검사하거나 딕셔너리 추출 방식으로 에러 우회
                 if raw_headers and hasattr(raw_headers, 'getallmatchingheaders'):
                     cookies = response.raw.headers.getlist("Set-Cookie")
                 else:
@@ -116,7 +116,7 @@ class SupabaseAuthManager:
             
             return False
 
-    def fetch_supabase_client(self) -> Optional[Client]:  # 👈 [교정] 반환 타입에 None 허용
+    def fetch_supabase_client(self) -> Optional[Client]:  # [교정] 반환 타입에 None 허용
         """완벽하게 복제된 브라우저 세션 상태(헤더+쿠키)로 Supabase 키 엔드포인트를 완벽 우회 잠금 해제합니다."""
         api_url = f"{self.base_url}/api/auth/get-supabase-keys"
         
@@ -168,7 +168,7 @@ class SupabaseAuthManager:
             #   return self.client
             return None
 
-    def login_and_get_client(self, email: str, password: str) -> Optional[Client]:  # 👈 [교정] 반환 타입에 None 허용
+    def login_and_get_client(self, email: str, password: str) -> Optional[Client]:  # [교정] 반환 타입에 None 허용
         if self.login_to_web(email, password): 
             return self.fetch_supabase_client() 
         return None

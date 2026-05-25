@@ -1,9 +1,9 @@
 #dashboard_ui.py
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from datetime import datetime
 import threading
-from typing import Any, Optional  # 타입 안정성 보강용
+from typing import Any # 타입 안정성 보강용
 
 # NFC 모니터링 모듈 연결
 from smartcard.CardMonitoring import CardMonitor
@@ -41,10 +41,6 @@ def parse_iso_time(iso_str):
 # ==========================================
 # 4. 개별 회차 아코디언/카드 패널 클래스
 # ==========================================
-import tkinter as tk
-import tkinter.ttk as ttk
-import threading
-from tkinter import messagebox
 
 class OccurrenceCardUi(tk.LabelFrame):
     def __init__(self, parent, item, controller, global_noti_cb):
