@@ -37,11 +37,9 @@ def parse_iso_time(iso_str):
         return iso_str
 
 
-
 # ==========================================
 # 4. 개별 회차 아코디언/카드 패널 클래스
 # ==========================================
-
 class OccurrenceCardUi(tk.LabelFrame):
     def __init__(self, parent, item, controller, global_noti_cb):
         super().__init__(parent, text=f" {item.get('events', {}).get('name', '알 수 없는 행사')} ", font=("Arial", 11, "bold"))
@@ -80,11 +78,11 @@ class OccurrenceCardUi(tk.LabelFrame):
         fmt_rec_val = format_recurrence(ev.get('recurrence_days'), ev.get('recurrence_type')) if 'format_recurrence' in globals() else "데이터 없음"
 
         info_text = (
-            f"회차 날짜: {self.item.get('occurrence_date')}  | "
+            f"회차 날짜: {self.item.get('occurrence_date')}  |  "
             f"시작 시간: {start_t}\n"
-            f"상태: {fmt_status_val}  | "
+            f"상태: {fmt_status_val}  |  "
             f"반복 요일: {fmt_rec_val}\n"
-            f"특별 행사: {'예' if ev.get('is_special_event') else '아니오'}  | "
+            f"특별 행사: {'예' if ev.get('is_special_event') else '아니오'}  |  "
             f"지각 기준: {ev.get('late_threshold_min', 5)}분"
         )
         self.lbl_info = tk.Label(info_frame, text=info_text, justify="left", anchor="w")
@@ -162,7 +160,6 @@ class OccurrenceCardUi(tk.LabelFrame):
         self.table_container.pack(fill="x", pady=5)
         self.current_expanded = None
 
-
     def on_card_selected(self, event=None):
         """카드가 클릭되거나 전용 버튼이 눌리면 활성화 상태를 안전하게 바인딩합니다."""
         if not self.winfo_exists(): return
@@ -229,6 +226,7 @@ class OccurrenceCardUi(tk.LabelFrame):
             self.entry_val.state(["!disabled"])
 
     def refresh_card_data(self):
+        """외부 혹은 내부 태그 완료 시 독립적으로 실행하여 이 상자 데이터만 리프레시합니다."""
         threading.Thread(target=self._bg_refresh, daemon=True).start()
 
     def _bg_refresh(self):
@@ -246,15 +244,12 @@ class OccurrenceCardUi(tk.LabelFrame):
                 if self.winfo_exists() and self.master and self.master.winfo_exists():
                     self.master.after(0, self.update_stat_ui)
             except Exception as e:
-                # [수정] 에러 메시지를 문자열로 가져와서 lambda의 기본값 인자로 즉시 바인딩
                 err_msg = str(e)
-                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
         threading.Thread(target=task, daemon=True).start()
         
     def fetch_missing_data(self):
         def task():
-            # 👈 [교정]: 비동기 구간 내 controller 존재 확인 방어 코드
             if not self.controller: return
             try:
                 data = self.controller.fetch_missing(self.id)
@@ -263,18 +258,15 @@ class OccurrenceCardUi(tk.LabelFrame):
                 if self.winfo_exists() and self.master and self.master.winfo_exists():
                     self.master.after(0, self.update_stat_ui)
             except Exception as e:
-                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
                     
         threading.Thread(target=task, daemon=True).start()
 
     def update_stat_ui(self):
         """방어적 코드 커스텀: 위젯 및 자식 컴포넌트 라벨 레이아웃 생존 여부 강제 필터링 검사"""
-        if not self.winfo_exists():
-            return  # 위젯이 이미 새로고침 등으로 파괴(destroy)된 경우 작동 중단하여 TclError 차단
-         
+        if not self.winfo_exists(): return
+       
         # 모든 내부 스태틱 라벨 컴포넌트의 가용성 전수 검사
         for key in ["present", "late", "absent", "missing", "total"]:
             if key not in self.stat_labels or not self.stat_labels[key].winfo_exists():
@@ -291,6 +283,12 @@ class OccurrenceCardUi(tk.LabelFrame):
                 self.lbl_missing_alert.config(text=f"미출석 인원 {self.missing_count}명이 남아 있습니다.")
             else:
                 self.lbl_missing_alert.config(text="")
+        
+        # 🌟 중요: 만약 데이터 테이블 상세가 열려 있는 상태라면 테이블도 동시 갱신
+        if self.current_expanded == 'attendance':
+            self.render_attendance_table()
+        elif self.current_expanded == 'missing':
+            self.render_missing_table()
             
     def toggle_attendance_table(self):
         if not self.winfo_exists() or not self.table_container.winfo_exists(): return
@@ -318,16 +316,17 @@ class OccurrenceCardUi(tk.LabelFrame):
             if w.winfo_exists(): w.destroy()
         if self.btn_toggle_att.winfo_exists(): self.btn_toggle_att.config(text="출석 상세 보기")
         if self.btn_toggle_mis.winfo_exists(): self.btn_toggle_mis.config(text="미출석 목록 보기")
-        #자식이 없으므로 컨테이너 프레임 자체를 화면 배치에서 일시 제외 (높이 0으로 축소 유도)
         self.table_container.pack_forget()
         self.current_expanded = None
-        #부모 및 스크롤 캔버스단까지 레이아웃 크기 재계산을 강제 적용
         self.update_idletasks()
 
     def render_attendance_table(self):
         if not self.winfo_exists() or not self.table_container.winfo_exists(): return
 
-        #테이블을 그리기 직전에 컨테이너를 다시 화면에 배치시킴
+        # 기존에 그려져 있던 테이블 위젯 청소 (중복 생성 방지)
+        for w in self.table_container.winfo_children():
+            if w.winfo_exists(): w.destroy()
+
         self.table_container.pack(fill="x", pady=5)
         if not self.attendance_items:
             tk.Label(self.table_container, text="출석 상세 데이터가 없습니다.", fg="#94a3b8").pack()
@@ -348,33 +347,34 @@ class OccurrenceCardUi(tk.LabelFrame):
         tree.column("check_time", width=150, anchor="center")
 
         for att in self.attendance_items:
-            # [해결 1] 조인된 profiles 딕셔너리에서 full_name과 student_id 안전하게 추출
             profiles = att.get("profiles") or {}
             full_name = profiles.get("full_name", "-")
             student_id = profiles.get("student_id", "-")
 
             fmt_as = format_att_status(att.get("status")) if 'format_att_status' in globals() else att.get("status")
             
-            # [해결 2] UTC 시간 문자열이 넘어올 경우 KST로 변환하여 포맷팅
             raw_check_time = att.get("check_time")
             if raw_check_time and 'parse_iso_time' in globals():
-                # 만약 DB에서 UTC로 넘어오더라도 안전하게 KST 문자열로 디코딩 후 변환 처리
                 fmt_ct = parse_iso_time(raw_check_time)
             else:
                 fmt_ct = raw_check_time or "-"
 
             tree.insert("", "end", values=(
-                full_name,     # 수정됨
-                student_id,    # 수정됨
+                full_name,
+                student_id,
                 fmt_as,
                 att.get("method") or "-",
-                fmt_ct         # 수정됨
+                fmt_ct
             ))
         tree.pack(fill="x")
 
     def render_missing_table(self):
         if not self.winfo_exists() or not self.table_container.winfo_exists(): return
-        #테이블을 그리기 직전에 컨테이너를 다시 화면에 배치시킴
+        
+        # 기존에 그려져 있던 테이블 위젯 청소 (중복 생성 방지)
+        for w in self.table_container.winfo_children():
+            if w.winfo_exists(): w.destroy()
+
         self.table_container.pack(fill="x", pady=5)
         if not self.missing_items:
             tk.Label(self.table_container, text="미출석 인원이 없습니다.", fg="#94a3b8").pack()
@@ -395,36 +395,29 @@ class OccurrenceCardUi(tk.LabelFrame):
 # ==========================================
 # 5. 메인 최상위 뷰 클래스 (Main Application)
 # ==========================================
-class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다.
+class TodayOperationsApp(tk.Frame):
     def __init__(self, parent=None, *args, **kwargs):
-        # 2. 부모 프레임(parent)을 받아 내부 프레임으로 초기화합니다.
         super().__init__(parent, *args, **kwargs)
         self.parent = parent
-        #self.title("오늘 출석 운영 시스템")
-        #self.geometry("850x850")
         
         self.controller = None
         self.operation_date = ""
         self.occurrence_items = []
         self.card_widgets = []
         
-        # NFC 리더 모니터링 관리를 위한 변수 초기화
         self.nfc_monitor = None
         self.nfc_observer = None
         self.selected_occurrence_id = None 
         
         self.init_ui()
         self.start_nfc_service()
-        # [수정] 프레임 구조일 때는 protocol 속성이 없으므로 예외 처리로 우회시킵니다.
         try:
-            # 👈 [교정]: hasattr 통과 시에만 감싸서 호출되도록 보장하여 Pylance 경고 소멸
             if hasattr(self, "protocol"):
                 getattr(self, "protocol")("WM_DELETE_WINDOW", self.on_close_window)
         except Exception:
             pass
             
     def init_ui(self):
-        # 전체 레이아웃 구성을 위한 스크롤 패널 배치
         container = tk.Frame(self)
         container.pack(fill="both", expand=True, padx=15, pady=15)
 
@@ -439,10 +432,8 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # 마우스 휠 바인딩
         canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
 
-        # --- 상단 타이틀 소개 글 영역 ---
         header_frame = tk.Frame(self.scrollable_frame)
         header_frame.pack(fill="x", pady=(0, 10))
         
@@ -450,15 +441,14 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         desc_text = (
             "오늘 날짜 기준 회차 조회,  실시간 NFC 카드 리더 인식을 관리하는 화면입니다.\n"
             "NFC 태깅 출석을 진행하려면 아래 목록에서 원하시는 [회차 카드]를 먼저 클릭해 활성화해 주세요.\n"
-            "출석: 시작 1시간전 + 시작시간 + 지각 분 이내 | 지각: 시작시간 + 지각 분 이후"
+            "출석: 시작 1시간전 + 시작시간 + 지각 분 이내 |\n"
+            "지각: 시작시간 + 지각 분 이후"
         )
         tk.Label(header_frame, text=desc_text, fg="#666666", justify="left", anchor="w", font=("Arial", 9)).pack(anchor="w", pady=5)
 
-        # --- 전역 실시간 NFC 알림 상태 바 추가 ---
-        self.lbl_noti = tk.Label(self.scrollable_frame,width=40, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
+        self.lbl_noti = tk.Label(self.scrollable_frame, width=40, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
         self.lbl_noti.pack(fill="x", pady=5)
 
-        # --- 상단 요약 대시보드 그리드 영역 ---
         self.summary_frame = tk.LabelFrame(self.scrollable_frame, text="운영 현황 요약")
         self.summary_frame.pack(fill="x", pady=10)
         
@@ -476,7 +466,6 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
             lbl_v.pack(pady=(2, 0))
             self.summary_labels[key] = lbl_v
 
-        # --- 액션 버튼 패널 영역 ---
         action_panel = tk.Frame(self.scrollable_frame)
         action_panel.pack(fill="x", pady=5)
         
@@ -486,12 +475,10 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         self.btn_refresh = ttk.Button(action_panel, text="새로고침", command=self.refresh_today_dashboard)
         self.btn_refresh.pack(side="left", padx=3)
 
-        # --- 알림 상태창 영역 (배경색 버그 방어선 완료) ---
         self.noti_frame = tk.Frame(self.scrollable_frame)
         self.noti_label = tk.Label(self.noti_frame, text="", wraplength=750, justify="left", font=("Arial", 10))
         self.noti_label.pack(fill="x")
 
-        # --- 메인 본문 오늘 회차 목록 영역 ---
         self.list_title_lbl = tk.Label(self.scrollable_frame, text="오늘 회차 목록 (버튼를 클릭하면 NFC 대상으로 지정됩니다)", font=("Arial", 12, "bold"), fg="#1e3a8a")
         self.list_title_lbl.pack(anchor="w", pady=(15, 5))
 
@@ -502,22 +489,17 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         try:
             self.nfc_observer = NFCTagObserver(
                 on_uuid_detected=self.handle_nfc_signal_received, 
-                on_error_detected=self.handle_nfc_error_received  # 에러 콜백 추가
+                on_error_detected=self.handle_nfc_error_received
             )
-            
             self.nfc_monitor = CardMonitor()
             self.nfc_monitor.addObserver(self.nfc_observer)
             self.set_global_noti("NFC 리더기 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
         except Exception as e:
-            # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
             err_msg = str(e)
-            # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
             self.after(0, lambda msg=err_msg: self.set_global_noti(f"NFC 서비스 초기화 실패 (리더기 연결 확인): {msg}", "error"))
-        
-     # 백그라운드 하드웨어 스레드에서 들어오는 에러 메시지를 안전하게 UI 스레드로 토스하는 함수
+     
     def handle_nfc_error_received(self, error_msg):
-        # Tkinter의 Thread-safe 처리를 위해 after 사용 필수
-        self.after(0, lambda msg=error_msg: self.set_global_noti(f"⚠️ 하드웨어 에러: {msg}", "error"))       
+        self.after(0, lambda msg=error_msg: self.set_global_noti(f"⚠️ 하드웨어 에러: {msg}", "error") )      
 
     def handle_nfc_signal_received(self, nfc_uid):
         self.after(0, lambda: self.execute_nfc_attendance_logic(nfc_uid))
@@ -530,23 +512,29 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         self.set_global_noti(f"NFC 카드 감지 (UID: {nfc_uid}). 처리 중...", "info")
         
         def task():
-            # 👈 [교정]: 비동기 task 내부 controller None 체크 가드 추가
             if not self.controller: return
             try:
                 res = self.controller.process_nfc_attendance(self.selected_occurrence_id, nfc_uid)
                 msg = res.get("message", "NFC 출석 완료")
                 self.after(0, lambda: self.set_global_noti(msg, "success"))
+                # 🌟 [핵심 변경 포인트]: 전체 대시보드 리셋 대신 선택된 카드만 표적 리프레시 호출
                 self.after(0, self.refresh_selected_card_data)
             except Exception as e:
-                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.set_global_noti(msg, "error"))
         threading.Thread(target=task, daemon=True).start()
 
     def refresh_selected_card_data(self):
-        # 현재 활성화된 특정 카드 및 대시보드를 전면 리프레시
-        self.refresh_today_dashboard()
+        """🌟 [구조 변경]: 전체 UI 카드를 재생성하지 않고 선택된 박스의 위젯 내부만 갱신합니다."""
+        if not self.selected_occurrence_id:
+            return
+            
+        # 1. 렌더링되어 관리 중인 카드 위젯 배열을 전수 조사합니다.
+        for card in self.card_widgets:
+            if card.winfo_exists() and card.id == self.selected_occurrence_id:
+                # 2. 해당 박스 컴포넌트의 독자 리프레시를 가동합니다. (트리뷰 렌더러까지 내부 포함)
+                card.refresh_card_data()
+                break
 
     def set_global_noti(self, text, status_type="info"):
         color, bg = "black", "#f3f4f6"
@@ -569,17 +557,16 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
 
     def clear_global_notification(self):
         if hasattr(self, 'noti_label') and self.noti_label:
-            # c_white 대신 명확한 화이트 색상 코드로 수정하여 버그 소멸
             self.noti_label.config(text="", bg="#ffffff")
         self.noti_frame.pack_forget()
 
     def refresh_today_dashboard(self):
+        """새로고침 버튼 클릭 시에만 상단을 초기화하고 전체 카드를 받아와 동기화 빌드합니다."""
         self.clear_global_notification()
         if hasattr(self, 'btn_refresh') and self.btn_refresh:
             self.btn_refresh.config(state="disabled")
         
         def task():
-            # 👈 [교정]: 비동기 task 내부 controller None 체크 가드 추가
             if not self.controller: return
             try:
                 self.controller.ensure_today_occurrences()
@@ -590,9 +577,7 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
                 
                 self.after(0, self.render_dashboard_ui)
             except Exception as e:
-                # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
                 self.after(0, lambda msg=err_msg: self.after(0, lambda: self.set_global_notification(msg, "error")))
                 
             finally:
@@ -606,23 +591,18 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
         self.clear_global_notification()
         
         def task():
-            # 👈 [교정]: 비동기 task 내부 controller None 체크 가드 추가
             if not self.controller: return
             try:
                 data = self.controller.ensure_today_occurrences()
                 res = self.controller.fetch_today_occurrences()
                 self.operation_date = res.get("date", "-")
                 self.occurrence_items = res.get("items", [])
-                
                 msg = f"오늘 회차 동기화 완료: 생성 {data.get('created_count', 0)}건, 실패 {data.get('failed_count', 0)}건"
                 self.after(0, lambda: self.set_global_notification(msg, "success"))
                 self.after(0, self.render_dashboard_ui)
             except Exception as e:
-                 # 핵심 수정: 에러 객체가 사라지기 전에 문자열로 뽑아냅니다.
                 err_msg = str(e)
-                # lambda argument=value 구조를 사용하여 호출 시점이 아닌 '선언 시점'의 값을 고정(Binding)합니다.
-                self.after(0, lambda msg=err_msg: self.after(0, lambda: self.after(0, lambda: self.set_global_notification(msg, "error"))))
-                
+                self.after(0, lambda msg=err_msg: self.after(0, lambda: self.set_global_notification(msg, "error")))
             finally:
                 if hasattr(self, 'btn_sync') and self.btn_sync:
                     self.after(0, lambda: self.btn_sync.config(state="normal"))
@@ -631,25 +611,29 @@ class TodayOperationsApp(tk.Frame): # 1. tk.Tk를 tk.Frame으로 변경합니다
     def render_dashboard_ui(self):
         self.summary_labels["date"].config(text=self.operation_date or "-")
         self.summary_labels["total_occ"].config(text=str(len(self.occurrence_items)))
-        
         open_cnt = sum(1 for item in self.occurrence_items if item.get('status') == 'open')
         closed_cnt = sum(1 for item in self.occurrence_items if item.get('status') == 'closed')
         self.summary_labels["open_occ"].config(text=str(open_cnt))
         self.summary_labels["closed_occ"].config(text=str(closed_cnt))
-
+        
         for widget in self.cards_container.winfo_children():
             widget.destroy()
-
+            
         if not self.occurrence_items:
             tk.Label(self.cards_container, text="오늘 생성된 회차가 없습니다.", fg="#94a3b8", font=("Arial", 11), relief="solid", bd=1).pack(fill="x", pady=10)
             return
-
+            
         self.card_widgets = []
         for item in self.occurrence_items:
             card = OccurrenceCardUi(self.cards_container, item, self.controller, self.set_global_notification)
             card.pack(fill="x", pady=8)
-            self.card_widgets.append(card)
             
+            # 이전 선택 아이디가 유효하게 남아있다면 스타일 복원 타겟팅
+            if self.selected_occurrence_id and item.get('id') == self.selected_occurrence_id:
+                card.set_active_style()
+                
+            self.card_widgets.append(card)
+
     def on_close_window(self):
         try:
             if self.nfc_monitor and self.nfc_observer:

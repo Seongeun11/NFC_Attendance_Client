@@ -10,6 +10,10 @@ class MainFrame(tk.Frame):
         super().__init__(parent)
         self.parent = parent
         self.controller = None  # app.py 등에서 동적으로 바인딩받을 변수
+        # 주입받은 콜백 함수들을 인스턴스 변수로 저장하여 내부에서 유연하게 호출할 수 있도록 함
+        self.on_search_click = on_search_click
+        self.on_register_click = on_register_click
+        self.on_delete_click = on_delete_click
         
         # 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
         self.parent.title("NFC 관리자 통합 대시보드")
@@ -57,6 +61,9 @@ class MainFrame(tk.Frame):
         self.listbox.pack(fill="both", expand=True, side="left")
         scrollbar.config(command=self.listbox.yview)
 
+        # 🌟 [핵심 추가]: 사용자가 리스트박스 항목을 클릭(선택 변경)하면 등록 모드를 취소합니다.
+        self.listbox.bind("<<ListboxSelect>>", self.on_listbox_selection_changed)
+
         btn_bar = tk.Frame(frame1)
         btn_bar.pack(fill="x", padx=10, pady=10)
         
@@ -82,6 +89,44 @@ class MainFrame(tk.Frame):
         # 탭이 클릭되어 전환될 때 실시간 동기화 호출용 바인딩
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_switched)
         
+    # 🌟 [논리 보강]: 카드 등록 모드를 명시적으로 취소하는 메서드
+    def cancel_registration_mode(self, reason_text=""):
+        # 컨트롤러(NfcApp) 측에 등록 대기 중인 사용자 타겟 정보를 리셋 요청
+        if self.controller and hasattr(self.controller, 'current_target'):
+            self.controller.current_target = None
+        if self.controller and hasattr(self.controller, 'is_registering'):
+            self.controller.is_registering = False
+            
+        # UI 문구 복구
+        self.status.config(text="사용자를 선택하고 발급 프로세스를 진행하세요.", fg="gray")
+        if reason_text:
+            self.status_log.config(text=f"🛑 {reason_text}", fg="#b91c1c")
+
+    def on_listbox_selection_changed(self, event):
+        """리스트박스에서 다른 대상을 선택하면 등록 대기 상태를 무조건 해제합니다."""
+        # 선택이 완전히 비어있지 않은지 검증 후 취소 처리
+        if self.listbox.curselection():
+            self.cancel_registration_mode("다른 사용자가 선택되어 카드 등록 프로세스가 취소되었습니다.")
+
+    def handle_search_action(self):
+        """검색 버튼 클릭 시 기존 등록 작업을 취소한 후 조회를 시작합니다."""
+        self.cancel_registration_mode("새로운 검색 조회가 시작되어 등록 프로세스가 취소되었습니다.")
+        threading.Thread(
+            target=self.on_search_click, 
+            args=(self.search_entry.get(), self.only_reg_var.get(), self.only_active_var.get()), 
+            daemon=True
+        ).start()
+
+    def handle_delete_action(self):
+        """삭제 버튼 작동 시 기존 등록 진행 상태를 먼저 철회합니다."""
+        self.cancel_registration_mode("카드 삭제 작업이 요청되어 등록 프로세스가 취소되었습니다.")
+        threading.Thread(target=self.on_delete_click, daemon=True).start()
+
+    def handle_register_action(self):
+        """NFC 카드 등록 버튼을 클릭했을 때의 트리거"""
+        # 기존 등록 로직 실행 (NfcApp.register)
+        if self.on_register_click:
+            self.on_register_click()
 
     def link_controller(self, controller):
         """외부 비즈니스 DB 컨트롤러 자원을 내장된 출석 전체 프레임에 전파 연결합니다."""
