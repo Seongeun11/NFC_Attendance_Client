@@ -177,7 +177,7 @@ class OccurrenceCardUi(tk.LabelFrame):
         root_app = self.winfo_toplevel()
         target_app = self.find_today_operations_app()
         
-        # 👈 [교정]: Pylance 속성 할당 오류 방지를 위해 hasattr 검증 후 setattr로 안전 우회 처리
+        # Pylance 속성 할당 오류 방지를 위해 hasattr 검증 후 setattr로 안전 우회 처리
         if target_app and hasattr(target_app, 'selected_occurrence_id'):
             setattr(target_app, 'selected_occurrence_id', self.id)
         elif root_app:
@@ -213,7 +213,7 @@ class OccurrenceCardUi(tk.LabelFrame):
 
     def on_unit_change(self, event=None):
         if not self.winfo_exists(): return
-        # 👈 [교정]: 정의되지 않은 컴포넌트 변수들에 대해 hasattr 안전 검사기 도입해 크래시 및 경고 차단
+        # 정의되지 않은 컴포넌트 변수들에 대해 hasattr 안전 검사기 도입해 크래시 및 경고 차단
         if not (hasattr(self, 'expire_unit_var') and hasattr(self, 'expire_val_var') and hasattr(self, 'entry_val')):
             return
         
@@ -235,7 +235,7 @@ class OccurrenceCardUi(tk.LabelFrame):
 
     def fetch_attendance_data(self):
         def task():
-            # 👈 [교정]: 비동기 구간 내 controller 존재 확인 방어 코드
+            # 비동기 구간 내 controller 존재 확인 방어 코드
             if not self.controller: return
             try:
                 data = self.controller.fetch_attendance(self.id)
@@ -284,7 +284,7 @@ class OccurrenceCardUi(tk.LabelFrame):
             else:
                 self.lbl_missing_alert.config(text="")
         
-        # 🌟 중요: 만약 데이터 테이블 상세가 열려 있는 상태라면 테이블도 동시 갱신
+        # 만약 데이터 테이블 상세가 열려 있는 상태라면 테이블도 동시 갱신
         if self.current_expanded == 'attendance':
             self.render_attendance_table()
         elif self.current_expanded == 'missing':
@@ -418,23 +418,17 @@ class TodayOperationsApp(tk.Frame):
             pass
             
     def init_ui(self):
-        container = tk.Frame(self)
-        container.pack(fill="both", expand=True, padx=15, pady=15)
+        # [교정]: 전체 창 스크롤을 완전히 없애고 상하 고정 분할 구조로 변경
+        main_container = tk.Frame(self)
+        main_container.pack(fill="both", expand=True, padx=15, pady=15)
 
-        canvas = tk.Canvas(container, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        self.scrollable_frame = tk.Frame(canvas)
+        # ---------------------------------------------------------
+        # 1. 상단 고정 영역 (운영 대시보드 정보 및 제어 패널)
+        # ---------------------------------------------------------
+        self.fixed_top_frame = tk.Frame(main_container)
+        self.fixed_top_frame.pack(fill="x", side="top")
 
-        self.scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
-
-        header_frame = tk.Frame(self.scrollable_frame)
+        header_frame = tk.Frame(self.fixed_top_frame)
         header_frame.pack(fill="x", pady=(0, 10))
         
         tk.Label(header_frame, text="오늘 출석 운영 (NFC)", font=("Arial", 16, "bold")).pack(anchor="w")
@@ -446,10 +440,10 @@ class TodayOperationsApp(tk.Frame):
         )
         tk.Label(header_frame, text=desc_text, fg="#666666", justify="left", anchor="w", font=("Arial", 9)).pack(anchor="w", pady=5)
 
-        self.lbl_noti = tk.Label(self.scrollable_frame, width=40, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
+        self.lbl_noti = tk.Label(self.fixed_top_frame, width=40, text="NFC 카드를 태그해주세요.", font=("Arial", 11, "bold"), fg="blue", bg="#f0fdf4", height=2, relief="solid")
         self.lbl_noti.pack(fill="x", pady=5)
 
-        self.summary_frame = tk.LabelFrame(self.scrollable_frame, text="운영 현황 요약")
+        self.summary_frame = tk.LabelFrame(self.fixed_top_frame, text="운영 현황 요약")
         self.summary_frame.pack(fill="x", pady=10)
         
         self.summary_labels = {}
@@ -466,7 +460,7 @@ class TodayOperationsApp(tk.Frame):
             lbl_v.pack(pady=(2, 0))
             self.summary_labels[key] = lbl_v
 
-        action_panel = tk.Frame(self.scrollable_frame)
+        action_panel = tk.Frame(self.fixed_top_frame)
         action_panel.pack(fill="x", pady=5)
         
         self.btn_sync = ttk.Button(action_panel, text="오늘 회차 동기화", command=self.handle_sync_today)
@@ -475,15 +469,49 @@ class TodayOperationsApp(tk.Frame):
         self.btn_refresh = ttk.Button(action_panel, text="새로고침", command=self.refresh_today_dashboard)
         self.btn_refresh.pack(side="left", padx=3)
 
-        self.noti_frame = tk.Frame(self.scrollable_frame)
+        self.noti_frame = tk.Frame(self.fixed_top_frame)
         self.noti_label = tk.Label(self.noti_frame, text="", wraplength=750, justify="left", font=("Arial", 10))
         self.noti_label.pack(fill="x")
 
-        self.list_title_lbl = tk.Label(self.scrollable_frame, text="오늘 회차 목록 (버튼를 클릭하면 NFC 대상으로 지정됩니다)", font=("Arial", 12, "bold"), fg="#1e3a8a")
+        self.list_title_lbl = tk.Label(self.fixed_top_frame, text="오늘 회차 목록 (버튼을 클릭하면 NFC 대상으로 지정됩니다)", font=("Arial", 12, "bold"), fg="#1e3a8a")
         self.list_title_lbl.pack(anchor="w", pady=(15, 5))
 
-        self.cards_container = tk.Frame(self.scrollable_frame)
-        self.cards_container.pack(fill="x", expand=True)
+        # ---------------------------------------------------------
+        # 2. 하단 독립 스크롤 영역 (오늘회차 목록 컨테이너)
+        # ---------------------------------------------------------
+        scroll_outer_frame = tk.Frame(main_container)
+        scroll_outer_frame.pack(fill="both", expand=True)
+
+        self.list_canvas = tk.Canvas(scroll_outer_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(scroll_outer_frame, orient="vertical", command=self.list_canvas.yview)
+        
+        # 실제 내부 아이템 카드 박스들이 배치될 내부 프레임 컨테이너
+        self.cards_container = tk.Frame(self.list_canvas)
+        
+        # 내부 컨테이너 내부 크기 변화 감지 시 스크롤바 바운더리 실시간 연동 업데이트
+        self.cards_container.bind(
+            "<Configure>", 
+            lambda e: self.list_canvas.configure(scrollregion=self.list_canvas.bbox("all"))
+        )
+        self.canvas_window = self.list_canvas.create_window((0, 0), window=self.cards_container, anchor="nw")
+        
+        # 윈도우 창 크기가 늘어날 때 내부 카드들의 가로폭도 캔버스 크기에 딱 맞춤
+        self.list_canvas.bind(
+            "<Configure>", 
+            lambda e: self.list_canvas.itemconfig(self.canvas_window, width=e.width)
+        )
+        
+        self.list_canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.list_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 마우스 포인터가 오늘회차목록컨테이너 내부 영역에 들어와 있을 때만 휠 연동 기능 작동
+        def _on_mousewheel(e):
+            self.list_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+            
+        self.list_canvas.bind("<Enter>", lambda _: self.list_canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        self.list_canvas.bind("<Leave>", lambda _: self.list_canvas.unbind_all("<MouseWheel>"))
 
     def start_nfc_service(self):
         try:
@@ -517,7 +545,7 @@ class TodayOperationsApp(tk.Frame):
                 res = self.controller.process_nfc_attendance(self.selected_occurrence_id, nfc_uid)
                 msg = res.get("message", "NFC 출석 완료")
                 self.after(0, lambda: self.set_global_noti(msg, "success"))
-                # 🌟 [핵심 변경 포인트]: 전체 대시보드 리셋 대신 선택된 카드만 표적 리프레시 호출
+                # 전체 대시보드 리셋 대신 선택된 카드만 표적 리프레시 호출
                 self.after(0, self.refresh_selected_card_data)
             except Exception as e:
                 err_msg = str(e)
@@ -525,7 +553,7 @@ class TodayOperationsApp(tk.Frame):
         threading.Thread(target=task, daemon=True).start()
 
     def refresh_selected_card_data(self):
-        """🌟 [구조 변경]: 전체 UI 카드를 재생성하지 않고 선택된 박스의 위젯 내부만 갱신합니다."""
+        """전체 UI 카드를 재생성하지 않고 선택된 박스의 위젯 내부만 갱신합니다."""
         if not self.selected_occurrence_id:
             return
             
@@ -633,6 +661,9 @@ class TodayOperationsApp(tk.Frame):
                 card.set_active_style()
                 
             self.card_widgets.append(card)
+        # [교정]: 아이템 동적 재생성 후 스크롤 캔버스 바운더리 즉시 재계산 강제 적용
+        self.list_canvas.update_idletasks()
+        self.list_canvas.configure(scrollregion=self.list_canvas.bbox("all"))
 
     def on_close_window(self):
         try:

@@ -37,11 +37,11 @@ class MainFrame(tk.Frame):
         self.only_reg_var = tk.BooleanVar(value=False)
         tk.Checkbutton(top_bar, text="등록된 사용자만", variable=self.only_reg_var).pack(side="left", padx=5)
         
-        # [추가] 재학생만 보기 변수 및 체크박스
+        # 재학생만 보기 변수 및 체크박스
         self.only_active_var = tk.BooleanVar(value=True)
         tk.Checkbutton(top_bar, text="재학생만", variable=self.only_active_var).pack(side="left", padx=5)
 
-        # [추가] 검색 버튼 클릭 시 on_search_click에 self.only_active_var.get() 인자 추가 전달
+        # 검색 버튼 클릭 시 on_search_click에 self.only_active_var.get() 인자 추가 전달
         tk.Button(
             top_bar, 
             text="검색", 
@@ -61,13 +61,17 @@ class MainFrame(tk.Frame):
         self.listbox.pack(fill="both", expand=True, side="left")
         scrollbar.config(command=self.listbox.yview)
 
-        # 🌟 [핵심 추가]: 사용자가 리스트박스 항목을 클릭(선택 변경)하면 등록 모드를 취소합니다.
+        # 사용자가 리스트박스 항목을 클릭(선택 변경)하면 등록 모드를 취소합니다.
         self.listbox.bind("<<ListboxSelect>>", self.on_listbox_selection_changed)
+        # 더블클릭 및 엔터 입력 시 즉시 등록 함수 연동
+        self.listbox.bind("<Double-1>", lambda event: on_register_click())
+        self.listbox.bind("<Return>", lambda event: on_register_click())
+
 
         btn_bar = tk.Frame(frame1)
         btn_bar.pack(fill="x", padx=10, pady=10)
         
-        self.status = tk.Label(btn_bar, text="사용자를 선택하고 발급 프로세스를 진행하세요.", fg="gray")
+        self.status = tk.Label(btn_bar, text="사용자를 선택하고 발급 프로세스를 진행하세요.\n더블클릭을 하거나 엔터를 누르면 등록을 시작합니다.\n방향키로 리스트를 선택할수 있습니다.", fg="blue")
         self.status.pack(side="left", padx=5)
         self.status_log = tk.Label(frame1, text="", fg="orange")
         self.status_log.pack(fill="x", side="bottom")
@@ -76,7 +80,7 @@ class MainFrame(tk.Frame):
         tk.Button(btn_bar, text="NFC 카드 등록", command=on_register_click).pack(side="right", padx=5)
 
         # -------------------------------------------------------------------------
-        # [탭 2] 출석 탭 내부에 attendance_UI 전체(TodayOperationsApp) 임포트 연동
+        # [탭 2] 출석 탭 내부에 dashboard_ui 전체(TodayOperationsApp) 임포트 연동
         # -------------------------------------------------------------------------
         frame2 = tk.Frame(self, bg="#f9fafb")
         self.notebook.add(frame2, text="출석 현황 대시보드")
@@ -89,7 +93,7 @@ class MainFrame(tk.Frame):
         # 탭이 클릭되어 전환될 때 실시간 동기화 호출용 바인딩
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_switched)
         
-    # 🌟 [논리 보강]: 카드 등록 모드를 명시적으로 취소하는 메서드
+    # 카드 등록 모드를 명시적으로 취소하는 메서드
     def cancel_registration_mode(self, reason_text=""):
         # 컨트롤러(NfcApp) 측에 등록 대기 중인 사용자 타겟 정보를 리셋 요청
         if self.controller and hasattr(self.controller, 'current_target'):
@@ -98,7 +102,7 @@ class MainFrame(tk.Frame):
             self.controller.is_registering = False
             
         # UI 문구 복구
-        self.status.config(text="사용자를 선택하고 발급 프로세스를 진행하세요.", fg="gray")
+        self.status.config(text="사용자를 선택하고 발급 프로세스를 진행하세요.", fg="blue")
         if reason_text:
             self.status_log.config(text=f"🛑 {reason_text}", fg="#b91c1c")
 

@@ -10,7 +10,7 @@ from supabase import create_client, Client
 #SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 #SUPABASEAUTH = create_client(SUPABASE_URL, SUPABASE_ANON_KEY) 
 
-# 🚀 [표준 변경] 기존 하드코딩 전역 변수를 가변형 전역 싱글톤 객체로 캡슐화
+#기존 하드코딩 전역 변수를 가변형 전역 싱글톤 객체로 캡슐화
 class SupabaseGlobalContext:
     _client: Optional[Client] = None  # [교정] None 대입이 가능하도록 Optional 선언
     _lock = threading.Lock()

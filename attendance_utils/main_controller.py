@@ -139,7 +139,7 @@ class NfcApp:
         try:
             selected = self.current_frame.listbox.curselection()
             if not selected:
-                self.current_frame.status.config(text="[경고] 선택된 사용자가 없습니다.")
+                self.current_frame.status.config(text="[경고] 선택된 사용자가 없습니다.", fg="blue")
                 return
                 
             index = selected[0]
@@ -149,7 +149,7 @@ class NfcApp:
             profiles_id = target.get("id")
             user_name = target.get("full_name", "이름 없음")
 
-            self.current_frame.status.config(text=f"{user_name}의 NFC 카드 삭제 중...")
+            self.current_frame.status.config(text=f"{user_name}의 NFC 카드 삭제 중...", fg="blue")
             
             # 서비스 레이어 호출 (삭제 실행)
             success = self.card_service.delete_nfc_card(profiles_id)
@@ -157,7 +157,7 @@ class NfcApp:
             # 4. UI 및 리스트박스 상태 업데이트
             def update_ui_delete_success():
                 if self.current_frame is None: return
-                self.current_frame.status.config(text=f"{user_name} 카드 삭제 완료")
+                self.current_frame.status.config(text=f"{user_name} 카드 삭제 완료", fg="blue")
                 
                 # 기존 텍스트 가져와서 '[등록됨]'을 '[미등록]'으로 변경
                 current_text = self.current_frame.listbox.get(index)
@@ -174,7 +174,7 @@ class NfcApp:
 
         except Exception as e:
             #print(f"[delete_user 함수 에러 발생]: {str(e)}", flush=True)
-            self.root.after(0, lambda: self.current_frame.status.config(text="카드 삭제 중 오류가 발생했습니다.") if self.current_frame else None)
+            self.root.after(0, lambda: self.current_frame.status.config(text="카드 삭제 중 오류가 발생했습니다.", fg="blue") if self.current_frame else None)
         
 
     def register(self):
@@ -182,14 +182,14 @@ class NfcApp:
         try:
             selected = self.current_frame.listbox.curselection()
             if not selected:
-                self.current_frame.status.config(text="[경고] 선택된 사용자가 없습니다.")
+                self.current_frame.status.config(text="[경고] 선택된 사용자가 없습니다.", fg="blue")
                 return
                 
             index = selected[0]
             if not self.db_users: return
             target = self.db_users[index]
             
-            self.current_frame.status.config(text=f"{target.get('full_name', '')} 카드 태그 대기 중...")
+            self.current_frame.status.config(text=f"{target.get('full_name', '')} 카드 태그 대기 중...", fg="blue")
             self.current_frame.status_log.config(text=f"NFC CardMonitor 서비스를 시작합니다.")
 
             # 백그라운드 리더기 가동 서비스 실행 (비동기 데몬 스레드로 시작)
@@ -217,14 +217,14 @@ class NfcApp:
             
             # [Pylance 에러 치유] active_client와 self.client가 None인지 명시적으로 방어 체크
             if active_client is None or self.client is None:
-                self.root.after(0, lambda: self.current_frame.status.config(text="서버 연결 세션이 유효하지 않습니다.") if self.current_frame else None)
+                self.root.after(0, lambda: self.current_frame.status.config(text="서버 연결 세션이 유효하지 않습니다.", fg="blue") if self.current_frame else None)
                 return False
             
             check = active_client.table("nfc_cards").select("profiles_id").eq("nfc_id", uid).execute()
             #check = self.client.table("nfc_cards").select("profiles_id").eq("nfc_id", uid).execute()
 
             if check.data:
-                self.root.after(0, lambda: self.current_frame.status.config(text="태그한 카드는 이미 등록되었습니다.") if self.current_frame else None)
+                self.root.after(0, lambda: self.current_frame.status.config(text="태그한 카드는 이미 등록되었습니다.", fg="blue") if self.current_frame else None)
                 #print("중복 이미 등록된 카드입니다.", flush=True)
                 return False
 
@@ -237,7 +237,7 @@ class NfcApp:
             # 1. UI 텍스트 및 상태 업데이트
             def update_ui_success():
                 if self.current_frame is None: return
-                self.current_frame.status.config(text=f"{target['full_name']} 등록 완료")
+                self.current_frame.status.config(text=f"{target['full_name']} 등록 완료", fg="blue")
                 
                 # 현재 선택된 리스트박스 인덱스 가져오기
                 selected = self.current_frame.listbox.curselection()
@@ -260,7 +260,7 @@ class NfcApp:
             self.current_target = None
             return True  # 등록 성공 시 True 반환하여 모니터링 종료 유도
         except Exception as e:
-            self.root.after(0, lambda: self.current_frame.status.config(text="이미 등록된 계정은 다시 등록할 수 없습니다.") if self.current_frame else None)
+            self.root.after(0, lambda: self.current_frame.status.config(text="이미 등록된 계정은 다시 등록할 수 없습니다.", fg="blue") if self.current_frame else None)
             #print(f"오류 발생: {str(e)}", flush=True)
             return False
 
@@ -277,7 +277,7 @@ class NfcApp:
             #print(f"[NFC 감지됨] 값 = {uid_or_error} / 대상자 = {target['full_name']} 등록 완료", flush=True)
             def update_ui_success():
                 if self.current_frame is None: return
-                self.current_frame.status.config(text=f"{target['full_name']} 등록 완료")
+                self.current_frame.status.config(text=f"{target['full_name']} 등록 완료", fg="blue")
                 if index is not None:
                     current_text = self.current_frame.listbox.get(index)
                     if "[미등록]" in current_text:
@@ -286,9 +286,9 @@ class NfcApp:
                         self.current_frame.listbox.insert(index, new_text)
             self.root.after(0, update_ui_success)
         elif status == 'DUPLICATE':
-            self.root.after(0, lambda: self.current_frame.status.config(text="태그한 카드는 이미 등록되었습니다.") if self.current_frame else None)
+            self.root.after(0, lambda: self.current_frame.status.config(text="태그한 카드는 이미 등록되었습니다.", fg="blue") if self.current_frame else None)
         elif status == 'FAILED':
-            self.root.after(0, lambda: self.current_frame.status.config(text="이미 등록된 계정은 다시 등록할 수 없습니다.") if self.current_frame else None)
+            self.root.after(0, lambda: self.current_frame.status.config(text="이미 등록된 계정은 다시 등록할 수 없습니다.", fg="blue") if self.current_frame else None)
         elif status == 'TERMINATED':
             self.root.after(0, lambda: self.current_frame.status_log.config(text="NFC 서비스가 정지되었습니다.") if self.current_frame else None)
         #[오류 메시지 대시보드 출력 보완 및 버그 수정]

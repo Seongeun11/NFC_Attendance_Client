@@ -50,28 +50,19 @@ class LoginApp:
             if self.current_frame and hasattr(self.current_frame, "status") and self.current_frame.status and msg:
                 self.current_frame.status.config(text=msg)
 
-        # UI 비활성화 실행
-        self.root.after(0, disable_ui)
-
         # 2. 입력값 유효성 기본 검사
         if not admin_id or not pw:
             self.root.after(0, lambda: self.current_frame.status.config(text="ID와 비밀번호를 모두 입력해주세요.") if self.current_frame and hasattr(self.current_frame, "status") and self.current_frame.status else None)
             self.root.after(0, enable_ui)
             return
+        # UI 비활성화 실행
+        self.root.after(0, disable_ui)
 
         try:
             self.auth_manager.login_and_get_client(admin_id, pw)
             # 필요할 때 언제든 최신 연결 정보가 포함된 클라이언트 로드 가능
             self.client = SupabaseGlobalContext.get_client()
-            
-            # [요청 사항 반영] 이메일 도메인 매핑 로직 포함
-            #email = f"{admin_id}@club.local"
-            
-            # 3. SUPABASEAUTH를 통한 실제 세션 인증 시도
-            #result = self.client.auth.sign_in_with_password({
-            #    "email": email,
-            #    "password": pw
-            #})
+      
             
             # 응답 객체 및 세션 유효성 검증
             is_success = self.client is not None

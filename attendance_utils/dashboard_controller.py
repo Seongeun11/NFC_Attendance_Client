@@ -200,7 +200,7 @@ class AttendanceController:
         except Exception as e:
             raise Exception(f"결석 처리에 실패했습니다: {str(e)}")
 
-    # === 🚀 [NFC 출석 - 기존 컬럼명(nfc_id) 복구 및 코에스 에러 방어 버전] ===
+    # === [NFC 출석 - 기존 컬럼명(nfc_id) 복구 및 코에스 에러 방어 버전] ===
     def process_nfc_attendance(self, occurrence_id, nfc_uid):
         """
         NFC 카드 UID를 조회하여 소유자를 식별하고 지각 시간을 판별하여 출석 테이블에 반영합니다.
