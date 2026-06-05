@@ -17,7 +17,7 @@ class MainFrame(tk.Frame):
         
         # 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
         self.parent.title("NFC 관리자 통합 대시보드")
-        self.parent.geometry("700x860")  
+        self.parent.geometry("750x860")  # 콤보박스 배치를 위해 가로 너비 소폭 확장 
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True)
@@ -33,7 +33,14 @@ class MainFrame(tk.Frame):
         tk.Label(top_bar, text="사용자 검색:").pack(side="left", padx=5)
         self.search_entry = tk.Entry(top_bar)
         self.search_entry.pack(side="left", fill="x", expand=True, padx=5)
-        
+
+        # 💡 [추가] 소속 필터 콤보박스 위젯 배치
+        tk.Label(top_bar, text="소속 필터:").pack(side="left", padx=5)
+        self.dept_combobox = ttk.Combobox(top_bar, state="readonly", width=12)
+        self.dept_combobox.set("전체")
+        self.dept_combobox.pack(side="left", padx=5)
+
+
         self.only_reg_var = tk.BooleanVar(value=False)
         tk.Checkbutton(top_bar, text="등록된 사용자만", variable=self.only_reg_var).pack(side="left", padx=5)
         
@@ -41,13 +48,13 @@ class MainFrame(tk.Frame):
         self.only_active_var = tk.BooleanVar(value=True)
         tk.Checkbutton(top_bar, text="재학생만", variable=self.only_active_var).pack(side="left", padx=5)
 
-        # 검색 버튼 클릭 시 on_search_click에 self.only_active_var.get() 인자 추가 전달
+        # 💡 검색 버튼 클릭 시 self.dept_combobox.get() 인자까지 함께 전달하도록 확장 [cite: 139]
         tk.Button(
             top_bar, 
             text="검색", 
             command=lambda: threading.Thread(
                 target=on_search_click, 
-                args=(self.search_entry.get(), self.only_reg_var.get(), self.only_active_var.get()), 
+                args=(self.search_entry.get(), self.only_reg_var.get(), self.only_active_var.get(), self.dept_combobox.get()), 
                 daemon=True
             ).start()
         ).pack(side="left", padx=5)
@@ -112,12 +119,13 @@ class MainFrame(tk.Frame):
         if self.listbox.curselection():
             self.cancel_registration_mode("다른 사용자가 선택되어 카드 등록 프로세스가 취소되었습니다.")
 
+    # 💡 엔터키나 다른 동작을 정의한 핸들러 메서드 내부에도 인자 개수 동기화 처리 [cite: 147]
     def handle_search_action(self):
         """검색 버튼 클릭 시 기존 등록 작업을 취소한 후 조회를 시작합니다."""
         self.cancel_registration_mode("새로운 검색 조회가 시작되어 등록 프로세스가 취소되었습니다.")
         threading.Thread(
             target=self.on_search_click, 
-            args=(self.search_entry.get(), self.only_reg_var.get(), self.only_active_var.get()), 
+            args=(self.search_entry.get(), self.only_reg_var.get(), self.only_active_var.get(), self.dept_combobox.get()), 
             daemon=True
         ).start()
 

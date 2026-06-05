@@ -6,6 +6,7 @@ from attendance_utils.main_ui import MainFrame
 from attendance_utils.user_service import AuthService, UserSearchService, NfcCardService
 from attendance_utils.dashboard_controller import AttendanceController
 from attendance_utils.auth_config import SupabaseGlobalContext
+from attendance_utils.update_checker import check_for_updates_async
 
 class NfcApp:
     def __init__(self, root,supabase_client=None):
@@ -55,43 +56,67 @@ class NfcApp:
         if hasattr(self, "controller") and self.controller:
             self.current_frame.link_controller(self.controller)
             
-        # [핵심 치유] UI가 완전히 배치된 후(after 100ms), 세션이 바인딩된 상태에서 안전하게 첫 초기 검색을 수행하도록 유도
-        self.root.after(100, lambda: self.search_user("", only_registered=False, only_active=True))
+        # show_main_frame 메서드 하단부 수정 
+        # 인자 개수 확장에 맞춰 초기 기본 소속 인자 "전체"를 넘겨주도록 변경합니다. 
+        self.root.after(100, lambda: self.search_user("", only_registered=False, only_active=True, selected_dept="전체"))
+
+        # 💡 [업데이트 확인 연동] 
+        # 화면 진입 처리가 끝난 후 약 0.5초(500ms) 뒤에 백그라운드 스레드로 업데이트 체크를 시작합니다.
+        # 이렇게 하면 사용자가 메인 대시보드를 보는 순간 팝업창이 부모 창 정중앙에 깔끔하게 배치됩니다.
+        self.root.after(500, lambda: check_for_updates_async(self.root))
     ############################################
     # 기능 구현 (컨트롤러 로직)
     ############################################
 
-    def search_user(self, keyword, only_registered=False, only_active=False):
-        # Pylance 타입 추론을 위한 안전장치 추가 (None일 경우 중단)
+    # 💡 파라미터 맨 뒤에 selected_dept="전체" 기본값 추가 
+    def search_user(self, keyword, only_registered=False, only_active=False, selected_dept="전체"):
         if self.current_frame is None: return
 
-        #print(f"\n[시작] '{keyword}' 검색 중... (등록된 사용자만: {only_registered}, 재학생만: {only_active})", flush=True)
         self.current_frame.status_log.config(text=f"'{keyword}' 검색 중...")
         try:
-            # [방어 코드] 실행 직전 싱글톤 및 서비스 레이어 재확인
             if not hasattr(self, 'search_service') or self.search_service is None:
                 self.refresh_services_context()
 
-            # 비즈니스 로직 클래스(UserSearchService) 호출
+            # 비즈니스 로직 서비스 호출
             users = self.search_service.execute_search(keyword, only_registered, only_active)
-            self.db_users = []
-            #elf.db_users = users # 인덱스 동기화용 변수 저장
+            
+            # 💡 [중요 동적 바인딩]: DB 전체 원본 결과에서 존재하는 모든 소속 목록을 추출하여 UI 콤보박스 목록 갱신
+            all_depts = set()
+            for u in users:
+                if isinstance(u, dict) and u.get("affiliations"):
+                    dept_name = u.get("affiliations", {}).get("name")
+                    if dept_name:
+                        all_depts.add(dept_name)
+            
+            # 가나다순 정렬 후 '전체' 항목을 맨 앞에 추가하여 콤보박스 값 갱신
+            dept_list = ["전체"] + sorted(list(all_depts))
+            
+            # 현재 선택된 값을 유지하면서 목록만 실시간 리프레시
+            current_sel = self.current_frame.dept_combobox.get()
+            self.current_frame.dept_combobox['values'] = dept_list
+            if current_sel in dept_list:
+                self.current_frame.dept_combobox.set(current_sel)
+            else:
+                self.current_frame.dept_combobox.set("전체")
 
-           # 리스트박스 초기화 (즉시 실행)
+            self.db_users = []
             self.current_frame.listbox.delete(0, "end")
 
             if not users:
-               #print("\n[검색 결과가 없습니다.]\n")
                 self.root.after(0, lambda: self.current_frame.status_log.config(text="[검색 결과가 없습니다.]") if self.current_frame else None)
                 return
 
-
             for u in users:
                 if not isinstance(u, dict): continue
+                
+                # 💡 [소속 필터링 분기]: '전체'가 아니고 선택된 소속과 사용자의 소속이 다르면 리스트 추가 제외
+                user_dept = u.get("affiliations", {}).get("name") if u.get("affiliations") else None
+                if selected_dept != "전체" and user_dept != selected_dept:
+                    continue
+
                 nfc_data = u.get("nfc_cards")
                 nfc_id, nfc_status, has_card = "없음", "없음", False
 
-                # NFC 카드 데이터 파싱 및 등록 여부 체크
                 if isinstance(nfc_data, dict):
                     nfc_id = str(nfc_data.get("nfc_id", "-"))
                     nfc_status = str(nfc_data.get("nfc_status", "-"))
@@ -104,31 +129,28 @@ class NfcApp:
                         nfc_status = "\n".join(statuses)
                         has_card = True
 
-                # [추가] '등록된 사용자만 보기'가 활성화되었는데 카드가 없다면 패스(제외)
                 if only_registered and not has_card:
                     continue
 
-                # 필터링을 통과한 유저만 클래스 변수(self.db_users)에 저장
                 self.db_users.append(u)
 
-                # UI 리스트박스에 추가 (상태가 휴학/수료 등 active가 아닐 때 시각적 구분용 표시 추가)
+                # UI 리스트박스 출력 텍스트 포맷 구성 (가독성을 위해 소속명 정보도 함께 표기하도록 변경)
                 status_text = "[등록됨]" if has_card else "[미등록]"
                 enroll_text = "" if u.get('enrollment_status') == 'active' else f"({u.get('enrollment_status')})"
-                item_text = f"[{u.get('student_id', '-')}] {u.get('full_name', '-')} {enroll_text} {status_text}"
                 
-                # [무한루프 해결] 무의미한 after(0) 람다 스케줄러를 제거하고 즉시 화면에 삽입합니다.
+                # 소속 텍스트 포맷팅 생성
+                dept_display = f" [{user_dept}]" if user_dept else " [소속없음]"
+                item_text = f"[{u.get('student_id', '-')}] {u.get('full_name', '-')}{dept_display} {enroll_text} {status_text}"
+                
                 self.current_frame.listbox.insert("end", item_text)
                 
-            #print(f"\n'{keyword}' 검색 완료... (등록된 사용자만: {only_registered}, 재학생만: {only_active})", flush=True)
-            self.current_frame.status_log.config(text=f"'{keyword}' 검색 완료...")
-            # 최종 필터링된 결과가 없을 때 처리
+            self.current_frame.status_log.config(text=f"'{keyword}' 검색 및 필터링 완료...")
+            
             if not self.db_users:
-               #print("\n[조건에 맞는 검색 결과가 없습니다.]\n")
                 self.current_frame.status_log.config(text="[조건에 맞는 검색 결과가 없습니다.]")
                 return
 
         except Exception as e:
-            #print(f"\n[에러 발생]: {str(e)}\n", flush=True)
             self.current_frame.status_log.config(text=f"[에러 발생]: {str(e)}")
 
     def delete_user(self):

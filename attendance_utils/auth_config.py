@@ -110,6 +110,9 @@ class SupabaseAuthManager:
             
             #print("[인증] 웹 로그인 성공 (세션 쿠키 확보 완료)")
             return True
+        # 💡 [핵심 추가] 인터넷 단절/네트워크 에러 감지 및 명시적 상위 전파
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as net_err:
+            raise RuntimeError("인터넷에 연결되지 않았습니다.") from net_err
         except Exception as e:
             #print(f"[인증 에러] 웹 로그인 실패: {e}")
             
@@ -156,18 +159,21 @@ class SupabaseAuthManager:
             SupabaseGlobalContext.set_client(self.client)
             return self.client
             
+        # 💡 [핵심 추가] 인터넷 단절/네트워크 에러 감지 및 명시적 상위 전파
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as net_err:
+            raise RuntimeError("인터넷에 연결되지 않았습니다.") from net_err
         except Exception as e:
-            #print(f"[실패] 인증 정보 획득 실패: {e}")
-            # 기존 백업 로직 유지
-            #fallback_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-            #fallback_key = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-            #if fallback_url and fallback_key:
-            #    self.client = create_client(fallback_url, fallback_key)
-                #print("[백업 완료] 로컬 .env 기반 클라이언트 초기화")
-            #   return self.client
+            # 명시적으로 던져진 인적 오류(ValueError) 정보는 보존하여 상위로 전달합니다.
+            if isinstance(e, ValueError):
+                raise e
             return None
 
     def login_and_get_client(self, email: str, password: str) -> Optional[Client]:  # [교정] 반환 타입에 None 허용
-        if self.login_to_web(email, password): 
-            return self.fetch_supabase_client() 
-        return None
+        """로그인 및 세션 검증을 일괄 처리하며 발생하는 인터넷 예외를 그대로 상위 UI 레이어로 관통시킵니다."""
+        try:
+            if self.login_to_web(email, password): 
+                return self.fetch_supabase_client() 
+            return None
+        except RuntimeError as e:
+            # "인터넷에 연결되지 않았습니다." 에러가 발생하면 무너지지 않고 그대로 상위 UI(컨트롤러)로 토스합니다.
+            raise e

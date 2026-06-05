@@ -35,14 +35,14 @@ class UserSearchService:
 
     def execute_search(self, keyword: str, only_registered: bool = False, only_active: bool = False) -> list:
         """조건에 맞춰 Supabase에서 회원 목록을 조회하고 필터링된 데이터 리스트를 반환합니다."""
-        #print(f"\n[시작] '{keyword}' 검색 중... (등록된 사용자만: {only_registered}, 재학생만: {only_active})", flush=True)
-        
         try:
-            # 1. 기본 쿼리 빌드
+            # 1. 기본 쿼리 빌드 (affiliations 관계형 테이블에서 name 추가 추출하도록 수정)
             query = (
                 self.client
                 .table("profiles")
-                .select("id, full_name, student_id, enrollment_status, nfc_cards!profiles_id(profiles_id, nfc_id, nfc_status)")
+                .select("id, full_name, student_id, enrollment_status, "
+                        "affiliations(name), "  # 💡 소속명(name)을 함께 들고 오도록 연동
+                        "nfc_cards!profiles_id(profiles_id, nfc_id, nfc_status)")
                 .or_(f"full_name.ilike.%{keyword}%,student_id.ilike.%{keyword}%")
                 .order("student_id")
             )
@@ -55,7 +55,6 @@ class UserSearchService:
             raw_users = result.data or []
             
             filtered_users = []
-            
             for u in raw_users:
                 if not isinstance(u, dict): 
                     continue
@@ -78,7 +77,6 @@ class UserSearchService:
             return filtered_users
 
         except Exception as e:
-            #print(f"[Search Service 에러]: {str(e)}", flush=True)
             raise e
         
 # [새로 분리 완료] NFC 카드 데이터 처리 및 리더기 모니터링 전담 클래스
