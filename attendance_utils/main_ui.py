@@ -17,7 +17,7 @@ class MainFrame(tk.Frame):
         
         # 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
         self.parent.title("NFC 관리자 통합 대시보드")
-        self.parent.geometry("620x860")  
+        self.parent.geometry("700x860")  
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True)

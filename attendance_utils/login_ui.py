@@ -24,7 +24,7 @@ class LoginFrame(tk.Frame):
         # 엔터 키 입력 시 상태 문구 변경 후 기존 로그인 함수 호출 연동
         def on_enter_login(event):
             
-            self.status.config(text="웹 서버에 로그인을 시도합니다...\n    잠시만 기다려 주세요.    ", fg="blue")
+            self.status.config(text="웹 서버에 로그인을 시도합니다...\n|------ 잠시만 기다려 주세요. ------|", fg="blue")
             # UI 레이아웃을 실시간 강제 업데이트하여 글자가 즉시 보이도록 조치
             self.update_idletasks()
             threading.Thread(

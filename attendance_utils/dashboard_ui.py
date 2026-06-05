@@ -68,7 +68,15 @@ class OccurrenceCardUi(tk.LabelFrame):
         info_frame = tk.Frame(self)
         info_frame.pack(fill="x", side="top", pady=5, padx=5)
 
+        # 1. 3중 데이터 구조 안전망 확보 (None 에러 원천 차단)
         ev = self.item.get('events') or {}
+        aff_data = ev.get('affiliations') or {}
+        
+        # 소속명이 존재하면 대괄호 안에 표시하고, 없거나 단발성이면 '소속 없음' 처리
+        affiliation_name = aff_data.get('name')
+        if not affiliation_name:
+            affiliation_name = "소속 없음"
+
         # 외부 함수(parse_iso_time 등)의 예외 동작 방지용 안전 바인딩 처리
         start_t = self.item.get('start_time')
         if 'parse_iso_time' in globals():
@@ -76,14 +84,33 @@ class OccurrenceCardUi(tk.LabelFrame):
             
         fmt_status_val = format_status(self.item.get('status')) if 'format_status' in globals() else self.item.get('status')
         fmt_rec_val = format_recurrence(ev.get('recurrence_days'), ev.get('recurrence_type')) if 'format_recurrence' in globals() else "데이터 없음"
+        # ======================================================================
+        # 💡 논리 교정: 소속 라벨과 상세 내용 라벨 분리 (파란색 강조 레이아웃)
+        # ======================================================================
+        # 텍스트들을 묶어줄 세로 프레임 생성
+        text_container = tk.Frame(info_frame)
+        text_container.pack(side="left", fill="x", expand=True)
+        text_container.bind("<Button-1>", self.on_card_selected)
 
+        # [첫 번째 줄]: 행사 소속 라벨 구성 (글씨색을 파란색으로 지정: fg="#1d4ed8" 혹은 "blue")
+        aff_text = f"행사 소속: [{affiliation_name}]"
+        self.lbl_aff = tk.Label(
+            text_container, 
+            text=aff_text, 
+            justify="left", 
+            anchor="w", 
+            fg="#1d4ed8",          # 🔵 진한 신뢰감을 주는 파란색으로 강조
+            font=("Arial", 10, "bold") # 가독성을 위해 볼드 처리 추가
+        )
+        self.lbl_aff.pack(side="top", fill="x", anchor="w")
+        self.lbl_aff.bind("<Button-1>", self.on_card_selected)
+
+        # [두 번째 줄 이하]: 나머지 기본 안내 텍스트 구성 (기존 검은색 글씨 유지)
         info_text = (
-            f"회차 날짜: {self.item.get('occurrence_date')}  |  "
-            f"시작 시간: {start_t}\n"
-            f"상태: {fmt_status_val}  |  "
+            f"회차 날짜: {self.item.get('occurrence_date')}\n"
+            f"시작 시간: {start_t}  |  상태: {fmt_status_val}\n"
             f"반복 요일: {fmt_rec_val}\n"
-            f"특별 행사: {'예' if ev.get('is_special_event') else '아니오'}  |  "
-            f"지각 기준: {ev.get('late_threshold_min', 5)}분"
+            f"특별 행사: {'예' if ev.get('is_special_event') else '아니오'}  |  지각 기준: {ev.get('late_threshold_min', 5)}분"
         )
         self.lbl_info = tk.Label(info_frame, text=info_text, justify="left", anchor="w")
         self.lbl_info.pack(side="left", fill="x", expand=True)
@@ -400,6 +427,10 @@ class TodayOperationsApp(tk.Frame):
         super().__init__(parent, *args, **kwargs)
         self.parent = parent
         
+        # 소속 매핑 데이터 저장용 변수 (시나리오 A 구현용)
+        self.affiliation_map = {"전체 보기": "all"}
+        self.selected_affiliation_id = "all"
+        
         self.controller = None
         self.operation_date = ""
         self.occurrence_items = []
@@ -408,7 +439,7 @@ class TodayOperationsApp(tk.Frame):
         self.nfc_monitor = None
         self.nfc_observer = None
         self.selected_occurrence_id = None 
-        
+       
         self.init_ui()
         self.start_nfc_service()
         try:
@@ -463,6 +494,13 @@ class TodayOperationsApp(tk.Frame):
         action_panel = tk.Frame(self.fixed_top_frame)
         action_panel.pack(fill="x", pady=5)
         
+        # [추가]: 🏫 행사 소속 필터링 드롭다운 레이아웃 구성
+        tk.Label(action_panel, text="행사 소속:", font=("Arial", 10, "bold")).pack(side="left", padx=(5, 2))
+        self.combo_affiliation = ttk.Combobox(action_panel, state="readonly", width=18)
+        self.combo_affiliation.pack(side="left", padx=3)
+        self.combo_affiliation.bind("<<ComboboxSelected>>", self.on_affiliation_changed)
+
+     
         self.btn_sync = ttk.Button(action_panel, text="오늘 회차 동기화", command=self.handle_sync_today)
         self.btn_sync.pack(side="left", padx=3)
         
@@ -512,6 +550,65 @@ class TodayOperationsApp(tk.Frame):
             
         self.list_canvas.bind("<Enter>", lambda _: self.list_canvas.bind_all("<MouseWheel>", _on_mousewheel))
         self.list_canvas.bind("<Leave>", lambda _: self.list_canvas.unbind_all("<MouseWheel>"))
+
+    # [교정]: Pylance 타입 추론(Never is not iterable) 에러를 해결한 버전
+    def load_affiliation_list(self):
+            """데이터베이스에서 소속 목록을 조회하여 상단 콤보박스 메뉴를 동적으로 채웁니다."""
+            if not self.controller or not hasattr(self.controller, 'client'):
+                return
+                
+            try:
+                # ascending 키워드를 빼고 정렬 방식을 직접 지정하거나 생략합니다. (기본값이 오름차순)
+                res = self.controller.client.table("affiliations")\
+                    .select("id, name")\
+                    .order("id")\
+                    .execute()
+                db_items = res.data if res and hasattr(res, 'data') else []
+                
+                # 💡 [논리 교정]: 이름으로 ID를 역추적하기 위한 딕셔너리 매핑 맵 생성
+                self.affiliation_map = {} 
+                combo_values = ["전체 보기"]
+                
+                for item in db_items:
+                    name_str = item.get("name")
+                    id_val = item.get("id")
+                    if name_str and id_val is not None:
+                        combo_values.append(name_str)
+                        self.affiliation_map[name_str] = id_val  # 예: {"아카데미": 1, "영성 40일": 2}
+                
+                # 메인 GUI 스레드에서 안전하게 콤보박스 UI 업데이트를 단행합니다.
+                def update_combo():
+                    if hasattr(self, 'combo_affiliation') and self.combo_affiliation:
+                        self.combo_affiliation['values'] = combo_values
+                        # 현재 선택된 ID가 "all"이면 "전체 보기"로 고정, 값이 있으면 매핑 맵에서 역조회하여 설정
+                        if self.selected_affiliation_id == "all":
+                            self.combo_affiliation.set("전체 보기")
+                        else:
+                            # ID로 이름을 찾아서 세팅 (방어 코드 포함)
+                            reverse_map = {v: k for k, v in self.affiliation_map.items()}
+                            self.combo_affiliation.set(reverse_map.get(self.selected_affiliation_id, "전체 보기"))
+                
+                self.after(0, update_combo)
+                
+            except Exception as e:
+                err_msg = f"소속 목록 연동 실패: {str(e)}"
+                self.after(0, lambda: self.set_global_notification(err_msg, "error"))
+                print(err_msg)
+    
+    # [추가]: 콤보박스 이벤트 핸들러
+    def on_affiliation_changed(self, event):
+        """상단 행사 소속 콤보박스 값이 변경되었을 때 호출되는 필터링 핵심 핸들러입니다."""
+        selected_text = self.combo_affiliation.get()
+        
+        # 💡 [논리 교정]: 선택된 텍스트에 따라 변수 상태 변경 후 대시보드 리프레시 연쇄 호출
+        if selected_text == "전체 보기":
+            self.selected_affiliation_id = "all"
+        else:
+            # 생성해 둔 매핑 맵에서 해당 소속의 정수형 진짜 ID를 획득합니다.
+            self.selected_affiliation_id = self.affiliation_map.get(selected_text, "all")
+            
+        # 소속 ID 변수가 업데이트되었으므로 대시보드를 새로고침하여 리랜더링합니다.
+        self.refresh_today_dashboard()
 
     def start_nfc_service(self):
         try:
@@ -597,8 +694,12 @@ class TodayOperationsApp(tk.Frame):
         def task():
             if not self.controller: return
             try:
+                # 💡 [여기에 추가] 대시보드 새로고침 시 소속 목록도 안전하게 서버에서 로드합니다.
+                # 메인 화면에서 컨트롤러 주입이 끝난 후 이 refresh 함수가 호출되므로 None 에러가 나지 않습니다.
+                self.after(0, self.load_affiliation_list)
                 self.controller.ensure_today_occurrences()
-                res = self.controller.fetch_today_occurrences()
+                # [수정]: 데이터 원격 요청 시 현재 선택되어 있는 행사 affiliations_id 필터 코드를 파라미터로 넘김
+                res = self.controller.fetch_today_occurrences(self.selected_affiliation_id)
                 
                 self.operation_date = res.get("date", "-")
                 self.occurrence_items = res.get("items", [])
@@ -622,7 +723,8 @@ class TodayOperationsApp(tk.Frame):
             if not self.controller: return
             try:
                 data = self.controller.ensure_today_occurrences()
-                res = self.controller.fetch_today_occurrences()
+                # [수정]: 동기화 연동 완료 후 카드 목록을 조회해올 때도 필터 식별자 파라미터 유지 전송
+                res = self.controller.fetch_today_occurrences(self.selected_affiliation_id)
                 self.operation_date = res.get("date", "-")
                 self.occurrence_items = res.get("items", [])
                 msg = f"오늘 회차 동기화 완료: 생성 {data.get('created_count', 0)}건, 실패 {data.get('failed_count', 0)}건"
@@ -648,7 +750,7 @@ class TodayOperationsApp(tk.Frame):
             widget.destroy()
             
         if not self.occurrence_items:
-            tk.Label(self.cards_container, text="오늘 생성된 회차가 없습니다.", fg="#94a3b8", font=("Arial", 11), relief="solid", bd=1).pack(fill="x", pady=10)
+            tk.Label(self.cards_container, text="조회 범위 내 오늘 생성되거나 조건에 맞는 회차가 없습니다.", fg="#94a3b8", font=("Arial", 11), relief="solid", bd=1).pack(fill="x", pady=10)
             return
             
         self.card_widgets = []
