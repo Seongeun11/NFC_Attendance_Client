@@ -255,110 +255,42 @@ class AttendanceController:
             raise Exception(f"결석 처리에 실패했습니다: {str(e)}")
 
     # === [NFC 출석 - 기존 컬럼명(nfc_id) 복구 및 코에스 에러 방어 버전] ===
-    def process_nfc_attendance(self, occurrence_id, nfc_uid):
+    def process_nfc_attendance(self, occurrence_id: str, nfc_uid: str) -> dict:
         """
-        NFC 카드 UID를 조회하여 소유자를 식별하고 지각 시간을 판별하여 출석 테이블에 반영합니다.
+        [교정 버전] 
+        인자 순서 뒤틀림을 방어하고, 잘못된 UUID 입력('o4b9fc9d4f6180') 시 크래시 없이 
+        안전한 실패 처리를 보장하는 초고속 단일 트랜잭션 RPC 프로세서입니다.
         """
         try:
-            # KST 기준으로 현재 시각을 생성하여 날짜 뒤틀림 방지
-            now = datetime.now(KST)
-            attendance_date = now.strftime("%Y-%m-%d")
+            # 💡 논리오류 원천 봉쇄: 인자가 비어있거나 타입 가드가 필요한 경우 사전 필터링
+            if not occurrence_id or len(occurrence_id) < 30: # 정상 UUID는 36자입니다.
+                return {
+                    "success": False,
+                    "message": f"올바르지 않은 회차 정보(UUID) 형태입니다. 입력값: {occurrence_id}"
+                }
+            
+            if not nfc_uid:
+                return {"success": False, "message": "NFC 카드 데이터를 읽지 못했습니다."}
 
-            # 원상 복구: 기존 스펙 그대로 .eq("nfc_id", nfc_uid) 조회 사용
-            # 단, single()을 지우고 execute()를 사용하여 데이터가 없을 때의 'cannot coerce' 크래시를 원천 방지합니다.
-            nfc_res = self.client.table("nfc_cards")\
-                .select("profiles_id, nfc_status")\
-                .eq("nfc_id", nfc_uid)\
-                .execute()
-            
-            # 중요 처리: 카드가 아예 등록 안 되어 빈 배열([])이 반환되면 커스텀 에러 발생
-            if not nfc_res.data:
-                raise Exception("등록되지 않은 카드입니다.")
-            
-            card_info = nfc_res.data[0]
-            if card_info.get("nfc_status") != "ACTIVE":
-                raise Exception("비활성화된 NFC 카드입니다. 관리자에게 문의하세요.")
-            
-            user_id = card_info.get("profiles_id")
+            # 안전하게 파라미터 이름을 명시(Named Parameter)하여 Supabase rpc 호출
+            response = self.client.rpc(
+                "process_nfc_attendance_rpc",
+                {
+                    "p_occurrence_id": str(occurrence_id),  # 확실하게 String/UUID 캐스팅
+                    "p_nfc_uid": str(nfc_uid)
+                }
+            ).execute()
 
-            # 2. 해당 유저의 상세 이름/학번 프로필 추가 확보
-            user_res = self.client.table("profiles")\
-                .select("full_name, student_id")\
-                .eq("id", user_id)\
-                .execute()
-                
-            if not user_res.data:
-                raise Exception("등록되지 않은 카드입니다.")
-                
-            full_name = user_res.data[0].get("full_name", "미상 수련생")
+            # 응답 가용성 전수 검사
+            if not response.data or len(response.data) == 0:
+                return {"success": False, "message": "데이터베이스로부터 결과를 받지 못했습니다."}
 
-            # 3. 현재 출석 대상 회차 정보 획득
-            occ_res = self.client.table("event_occurrences")\
-                .select("*, events(*)")\
-                .eq("id", occurrence_id)\
-                .execute()
-            
-            if not occ_res.data:
-                raise Exception("유효하지 않은 회차 정보입니다.")
-            
-            occ_data = occ_res.data[0]
-            if occ_data.get("status") in ["closed", "archived"]:
-                raise Exception("이미 마감되었거나 기록 보관된 회차이므로 출석 처리가 불가합니다.")
-
-            event_id = occ_data.get("event_id")
-            start_time_str = occ_data.get("start_time")
-            
-            # 지각 기준 계산
-            # Supabase에서 넘어온 문자열(보통 Z나 타임존이 포함됨)을 시간대 정보를 포함한 datetime 객체로 파싱합니다.
-            start_dt = datetime.fromisoformat(start_time_str.replace("Z", "+00:00"))
-            event_meta = occ_data.get("events") or {}
-            late_threshold = event_meta.get("late_threshold_min", 5)
-            
-            time_diff_mins = (now - start_dt).total_seconds() / 60.0
-            
-            if time_diff_mins <= late_threshold:
-                status = "present"
-                status_kor = "출석"
-            else:
-                status = "late"
-                status_kor = "지각"
-
-            # 4. 기존 출석부 중복 체크
-            att_check = self.client.table("attendance")\
-                .select("id, status")\
-                .eq("occurrence_id", occurrence_id)\
-                .eq("user_id", user_id)\
-                .execute()
-            
-            if att_check.data:
-                existing_record = att_check.data[0]
-                if existing_record.get("status") == "absent":
-                    raise Exception(f"[{full_name}]님은 관리자에 의해 결석 처리되어 출석 변경이 불가능합니다.")
-                raise Exception(f"[{full_name}]님은 이미 출석 체크가 완료되었습니다.")
-
-            # 5. 출석 데이터 삽입 실행
-            insert_data = {
-                "user_id": user_id,
-                "event_id": event_id,
-                "occurrence_id": occurrence_id,
-                "status": status,
-                "method": "nfc",
-                "attendance_date": attendance_date,
-                "check_time": now.isoformat()  # KST 기준 타임존 문자열(+09:00) 포함되어 저장됨
-            }
-            
-            self.client.table("attendance").insert(insert_data).execute()
-            
+            result = response.data[0]
             return {
-                "success": True,
-                "message": f"[{full_name}]님 {status_kor} 처리 완료 (방식: NFC)"
+                "success": result.get("success", False),
+                "message": result.get("message", "알 수 없는 응답 형식입니다.")
             }
-            
+
         except Exception as e:
-            # 혹시라도 걸러지지 않은 coerce 등의 예외 메시지가 섞여 나오면 강제로 한 번 더 걸러서 내보냅니다.
-            err_text = str(e)
-            if "cannot coerce" in err_text or "0 rows" in err_text:
-                raise Exception("등록되지 않은 카드입니다.")
-            raise Exception(err_text)
-        
-    
+            raise Exception(f"NFC 출석 통신 트랜잭션 에러 백트랙: {str(e)}")
+            

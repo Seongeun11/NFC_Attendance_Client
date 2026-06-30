@@ -28,7 +28,10 @@ class LoginFrame(tk.Frame):
             # UI 레이아웃을 실시간 강제 업데이트하여 글자가 즉시 보이도록 조치
             self.update_idletasks()
             threading.Thread(
-            self.on_login_click(self.id_entry.get(), self.pw_entry.get()))
+                target=self.on_login_click,
+                args=(self.id_entry.get(), self.pw_entry.get()),
+                daemon=True
+            ).start()
 
         # 엔터 키 바인딩 실행 (기존 변수명 username_entry, password_entry 유지)
         self.id_entry.bind("<Return>", on_enter_login)
