@@ -1,5 +1,6 @@
 #nfc_tag_obsever.py
 import time
+from tkinter import messagebox
 from smartcard.CardMonitoring import  CardObserver
 from smartcard.util import toHexString
 
@@ -55,11 +56,13 @@ class NFCTagObserver(CardObserver):
                 error_msg = str(e)
                 #print(f"[통신 에러] 카드 인식 중 오류 발생: {error_msg}")
                 # 중요: 에러가 발생했음을 서비스 및 메인 UI 리스너 채널로 응답을 던져줍니다.
+                messagebox.showinfo("오류", "카드 인식 중 오류 발생.\n인터넷 연결을 확인 후 다시 태그해주세요.")
                 if self.on_error_detected:
                     self.on_error_detected(error_msg)
-
+                    
         # [CASE 2] 카드가 리더기에서 떨어졌을 때
         for card in removed_cards:
             if self.last_uuid is not None:
                 #print("[알림] 태그가 리더기에서 떨어졌습니다.")
                 self.last_uuid = None
+

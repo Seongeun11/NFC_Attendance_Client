@@ -1,7 +1,6 @@
 #dashboard_controller.py
 
 from datetime import datetime, timedelta, timezone
-
 # KST (UTC+9) 시간대 정의
 KST = timezone(timedelta(hours=9))
 
@@ -255,42 +254,40 @@ class AttendanceController:
             raise Exception(f"결석 처리에 실패했습니다: {str(e)}")
 
     # === [NFC 출석 - 기존 컬럼명(nfc_id) 복구 및 코에스 에러 방어 버전] ===
-    def process_nfc_attendance(self, occurrence_id: str, nfc_uid: str) -> dict:
+    def process_nfc_attendance(self, occurrence_id, nfc_uid):
         """
-        [교정 버전] 
-        인자 순서 뒤틀림을 방어하고, 잘못된 UUID 입력('o4b9fc9d4f6180') 시 크래시 없이 
-        안전한 실패 처리를 보장하는 초고속 단일 트랜잭션 RPC 프로세서입니다.
+        NFC 카드 UID를 조회하여 소유자를 식별하고 지각 시간을 판별하여 출석 테이블에 반영합니다.
         """
         try:
-            # 💡 논리오류 원천 봉쇄: 인자가 비어있거나 타입 가드가 필요한 경우 사전 필터링
-            if not occurrence_id or len(occurrence_id) < 30: # 정상 UUID는 36자입니다.
-                return {
-                    "success": False,
-                    "message": f"올바르지 않은 회차 정보(UUID) 형태입니다. 입력값: {occurrence_id}"
-                }
-            
-            if not nfc_uid:
-                return {"success": False, "message": "NFC 카드 데이터를 읽지 못했습니다."}
 
-            # 안전하게 파라미터 이름을 명시(Named Parameter)하여 Supabase rpc 호출
-            response = self.client.rpc(
-                "process_nfc_attendance_rpc",
-                {
-                    "p_occurrence_id": str(occurrence_id),  # 확실하게 String/UUID 캐스팅
-                    "p_nfc_uid": str(nfc_uid)
-                }
-            ).execute()
+            rpc_result = (
+                self.client.rpc(
+                    "process_nfc_attendance_rpc",
+                    {
+                        "p_occurrence_id": occurrence_id,
+                        "p_nfc_uid": nfc_uid
+                    }
+                ).execute()
+            )
 
-            # 응답 가용성 전수 검사
-            if not response.data or len(response.data) == 0:
-                return {"success": False, "message": "데이터베이스로부터 결과를 받지 못했습니다."}
+            if not rpc_result.data:
+                raise Exception("출석 처리 결과를 받을 수 없습니다.")
 
-            result = response.data[0]
+            result = rpc_result.data[0]
+
+            if not result.get("success", False):
+                raise Exception(result.get("message", "출석 처리에 실패했습니다."))
+
             return {
-                "success": result.get("success", False),
-                "message": result.get("message", "알 수 없는 응답 형식입니다.")
+                "success": True,
+                "message": result.get("message")
             }
-
+                
         except Exception as e:
-            raise Exception(f"NFC 출석 통신 트랜잭션 에러 백트랙: {str(e)}")
-            
+            # 혹시라도 걸러지지 않은 coerce 등의 예외 메시지가 섞여 나오면 강제로 한 번 더 걸러서 내보냅니다.
+            err_text = str(e)
+            if "cannot coerce" in err_text or "0 rows" in err_text:
+                raise Exception("등록되지 않은 카드입니다.")
+            raise Exception(err_text)
+        
+    

@@ -1,5 +1,6 @@
 #user_service.py
 import time
+from tkinter import messagebox
 from smartcard.CardMonitoring import CardMonitor
 from attendance_utils.nfc_tag_observer import NFCTagObserver
 
@@ -121,8 +122,15 @@ class NfcCardService:
             self.current_target = None # 등록 완료 후 타겟 초기화
             return 'SUCCESS'
         except Exception as e:
-            #print(f"[NfcCardService] 카드 등록 중 예외 발생: {e}", flush=True)
-            return 'FAILED'
+            # 에러 메시지에 'getaddrinfo'나 '1101'이 포함되어 있다면 네트워크 끊김으로 판단
+            if "getaddrinfo" in str(e) or "1101" in str(e):
+                messagebox.showerror("오류","서버에 연결 할 수 없습니다.\n인터넷 연결을 확인 후 다시 태그해주세요.")
+                return "NETWORK_ERROR" # 메인 UI에 네트워크 에러 상태를 전달
+            else:
+                messagebox.showerror("오류","dB에서 오루가 발생했습니다.")
+                return "DB_ERROR"
+        
+        
 
     def cleanup_monitor(self):
         """실행 중인 백그라운드 리더기 자원을 안전하게 해제합니다."""
@@ -150,12 +158,17 @@ class NfcCardService:
 
         # 정상적으로 UUID 카드가 인식되었을 때의 처리 콜백 함수
         def handle_uuid_detected(uid):
-            result_status = self.check_and_register_card(target_user, uid)
-            # 메인 UI 리스너로 결과 상태(SUCCESS, DUPLICATE 등) 전달
-            on_status_change_callback(result_status, target_user, uid)
+            try:
+                result_status = self.check_and_register_card(target_user, uid)
+                # 메인 UI 리스너로 결과 상태(SUCCESS, DUPLICATE 등) 전달
+                on_status_change_callback(result_status, target_user, uid)
+                
+                if result_status in ['SUCCESS', 'DUPLICATE']:
+                    keep_running[0] = False
             
-            if result_status in ['SUCCESS', 'DUPLICATE']:
-                keep_running[0] = False
+
+            except Exception as e:
+                messagebox.showinfo("Error", "서버와 연결이 끊어졌습니다. 인터넷 연결을 확인 후 다시 태그해주세요.")
 
         # 카드 통신 및 하드웨어단 에러 발생 시 처리 콜백 함수
         def handle_hardware_error(error_msg):
@@ -177,6 +190,7 @@ class NfcCardService:
         except Exception as startup_error:
             # 리더기 시작 자체에서 에러 발생 시 처리 (예: 드라이버 다운 등)
             on_status_change_callback('ERROR', target_user, str(startup_error))
+            messagebox.showinfo("오류", "서버에 연결 할 수 없습니다.\n인터넷 연결을 확인 후 다시 태그해주세요.")
         finally:
             try:
                 monitor.deleteObserver(observer)

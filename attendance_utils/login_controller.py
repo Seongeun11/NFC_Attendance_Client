@@ -90,7 +90,7 @@ class LoginApp:
                 ui_msg = "로그인 실패: ID 또는 비밀번호가 올바르지 않습니다."
                 self.root.after(0, enable_ui, "ID와 비밀번호를 모두 입력해주세요.")
             else:
-                ui_msg = f"오류 발생: 아이디 비밀번호가 올바르지 않습니다."
+                ui_msg = f"오류 발생: 서버에 연결 할 수 없습니다.\n인터넷 연결을 확인 후 다시 태그해주세요."
                 self.root.after(0, enable_ui)
             self.root.after(0, lambda msg=ui_msg: enable_ui(msg))
 

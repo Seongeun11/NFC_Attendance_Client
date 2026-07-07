@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import threading
 
-from attendance_utils.today_operations_app import TodayOperationsApp
+from attendance_utils.dashboard_ui import TodayOperationsApp
 
 class MainFrame(tk.Frame):
     def __init__(self, parent, on_search_click, on_register_click, on_delete_click):
