@@ -6,10 +6,10 @@ import tkinter as tk
 from tkinter import messagebox
 
 # 💡 [설정] 현재 실행 중인 프로그램의 버전을 정의합니다. (릴리즈 배포 시 이 값을 올림)
-CURRENT_VERSION = "v1.3.0"
+CURRENT_VERSION = "v1.4.0"
 
 # 💡 [설정] 자신의 깃허브 사용자명과 레포지토리 이름을 적어주세요.
-GITHUB_OWNER = "Seongeun11 "
+GITHUB_OWNER = "Seongeun11"
 GITHUB_REPO = "NFC_Attendance_Client"
 
 

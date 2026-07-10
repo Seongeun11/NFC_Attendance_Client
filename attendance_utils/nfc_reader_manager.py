@@ -156,7 +156,7 @@ class ReaderManager:
         self._safe_ui_callback(f"총 {len(all_readers)}대의 NFC 리더기 관제 스레드가 가동되었습니다.", "success")
 
     def _consume_queue_loop(self):
-        self.ui_callback("[Consumer 스레드] 큐 모니터링 루프 가동 시작")
+        #self.ui_callback("[Consumer 스레드] 큐 모니터링 루프 가동 시작")
         
         while self.running:
             try:

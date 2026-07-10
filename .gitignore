@@ -5,3 +5,5 @@
 .vscode/
 build/
 dist/
+*.txt
+**.txt
