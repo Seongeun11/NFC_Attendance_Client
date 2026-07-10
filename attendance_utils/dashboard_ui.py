@@ -7,9 +7,7 @@ from tkinter import messagebox
 from typing import Any # 타입 안정성 보강용
 
 # NFC 모니터링 모듈 연결
-from smartcard.CardMonitoring import CardMonitor
-from attendance_utils.nfc_tag_observer import NFCTagObserver
-
+from attendance_utils.nfc_reader_manager import ReaderManager
 # ==========================================
 # 2. UI 헬퍼 및 포맷터 함수
 # ==========================================
@@ -613,17 +611,60 @@ class TodayOperationsApp(tk.Frame):
         self.refresh_today_dashboard()
 
     def start_nfc_service(self):
+        """기존 CardMonitor/Observer 방식에서 통합 ReaderManager 방식으로 전면 개편"""
+        if not self.controller:
+            self.set_global_noti("컨트롤러가 초기화되지 않아 NFC 서비스를 시작할 수 없습니다.", "error")
+            return
+
         try:
-            self.nfc_observer = NFCTagObserver(
-                on_uuid_detected=self.handle_nfc_signal_received, 
-                on_error_detected=self.handle_nfc_error_received
+            # 1. nfc_reader_manager의 ReaderManager 인스턴스화
+            # controller 아티팩트와 UI 로그/태깅 흐름을 제어할 통합 콜백을 주입합니다.
+            self.reader_manager = ReaderManager(
+                controller=self.controller, 
+                ui_callback=self._ui_nfc_callback_bridge
             )
-            self.nfc_monitor = CardMonitor()
-            self.nfc_monitor.addObserver(self.nfc_observer)
-            self.set_global_noti("NFC 리더기 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
+            
+            # 2. 물리 멀티 리더기 스캔 및 백그라운드 스레드 전체 가동
+            # (만약 start_all_readers 내부에서 블로킹이 발생한다면 threading.Thread로 감싸 가동하는 것이 안전합니다)
+            def run_service():
+                try:
+                    self.reader_manager.start_all_readers()
+                except Exception as ex:
+                    self.after(0, lambda: self.set_global_noti(f"⚠️ 리더기 가동 실패: {str(ex)}", "error"))
+
+            threading.Thread(target=run_service, daemon=True).start()
+            self.set_global_noti("NFC 멀티 리더 매니저 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
+            
         except Exception as e:
             err_msg = str(e)
-            self.after(0, lambda msg=err_msg: self.set_global_noti(f"NFC 서비스 초기화 실패 (리더기 연결 확인): {msg}", "error"))
+            self.after(0, lambda msg=err_msg: self.set_global_noti(f"NFC 매니저 초기화 실패: {msg}", "error"))
+
+    def _ui_nfc_callback_bridge(self, result_status, target, nfc_uid):
+        """
+        nfc_reader_manager 로직으로부터 전달받는 공통 규격의 UI 콜백 브릿지 함수입니다.
+        대시보드 상단 노티 라벨 및 선택된 회차 카드의 실시간 데이터 새로고침을 연동합니다.
+        """
+        def update_ui():
+            # 1. 감지 상태에 따른 상단 안내 레이블 업데이트
+            if result_status == "SUCCESS":
+                self.set_global_noti(f"✅ 출석 확인 성공! [UID: {nfc_uid}]", "success")
+            elif result_status == "DUPLICATE":
+                self.set_global_noti(f"⚠️ 이미 출석 처리된 카드입니다. [UID: {nfc_uid}]", "error")
+            else:
+                self.set_global_noti(f"❌ 처리 실패 ({result_status}) [UID: {nfc_uid}]", "error")
+
+            # 2. 현재 선택되어 활성화된 개별 회차 카드 정보 실시간 리프레시 수행
+            if hasattr(self, 'selected_occurrence_id') and self.selected_occurrence_id:
+                for child in self.cards_container.winfo_children():
+                    # __class__.__name__ 문자열 비교 대신 isinstance를 사용하여 
+                    # 정적 타입 검사기(Pyright/Mypy)가 속성(id, refresh_card_data)을 인식할 수 있도록 유도합니다.
+                    # ※ 주의: OccurrenceCardUi 클래스가 본문에 정의되어 있거나 정상적으로 import되어 있어야 합니다.
+                    if isinstance(child, OccurrenceCardUi):
+                        if child.id == self.selected_occurrence_id:
+                            child.refresh_card_data()
+
+        # Tkinter UI 스레드 안전 구동 보장
+        self.after(0, update_ui)
      
     def handle_nfc_error_received(self, error_msg):
         self.after(0, lambda msg=error_msg: self.set_global_noti(f"⚠️ 하드웨어 에러: {msg}", "error") )      

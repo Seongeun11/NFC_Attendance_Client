@@ -191,8 +191,10 @@ class NfcCardService:
         self.reader_manager = ReaderManager(controller=mock_controller, ui_callback=self._ui_callback_bridge)
         
         # 3. 출석용 필수 필드 검증을 우회하기 위해 모드 문자열 강제 세팅
-        #print(self.reader_manager.set_occurrence_id)
-        #self.reader_manager.set_occurrence_id("CARD_REGISTRATION_MODE")
+        #ReaderManager가 큐에서 데이터를 꺼내 처리할 때,
+        #occurrence_id가 특정 예약 문자열(예: "CARD_REGISTRATION_MODE")이거나
+        # 주입된 컨트롤러의 클래스 이름이 CardRegistrationController인 경우 회차 선택 필수 검증 로직을 우회하도록 수정합니다.
+        self.reader_manager.set_occurrence_id("CARD_REGISTRATION_MODE")
         #print(self.reader_manager.set_occurrence_id)
         
         try:
