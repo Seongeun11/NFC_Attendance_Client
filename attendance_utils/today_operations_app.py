@@ -4,8 +4,7 @@ from tkinter import ttk
 import threading
 
 # NFC 모니터링 모듈 연결
-from smartcard.CardMonitoring import CardMonitor
-from attendance_utils.nfc_tag_observer import NFCTagObserver
+from attendance_utils.nfc_reader_manager import ReaderManager
 
 # 분리해 낸 개별 컴포넌트 클래스 명시적 임포트
 from attendance_utils.occurrence_card_ui import OccurrenceCardUi
@@ -23,16 +22,18 @@ class TodayOperationsApp(tk.Frame):
         self.occurrence_items = []
         self.card_widgets = []
         
-        self.nfc_monitor = None
-        self.nfc_observer = None
+        #self.nfc_monitor = None
+        #self.nfc_observer = None
         self.selected_occurrence_id = None 
+        self.reader_manager = None
        
         self.init_ui()
         self.start_nfc_service()
         try:
             if hasattr(self, "protocol"):
                 getattr(self, "protocol")("WM_DELETE_WINDOW", self.on_close_window)
-        except Exception:
+        except Exception as e:
+            self.set_global_noti(f"초기화 실패: {e}", "error")
             pass
             
     def init_ui(self):
@@ -168,17 +169,30 @@ class TodayOperationsApp(tk.Frame):
 
     def start_nfc_service(self):
         try:
-            self.nfc_observer = NFCTagObserver(
-                on_uuid_detected=self.handle_nfc_signal_received, 
-                on_error_detected=self.handle_nfc_error_received
-            )
-            self.nfc_monitor = CardMonitor()
-            self.nfc_monitor.addObserver(self.nfc_observer)
-            self.set_global_noti("NFC 리더기 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
+            #self.nfc_observer = NFCTagObserver(
+            #    on_uuid_detected=self.handle_nfc_signal_received, 
+            #    on_error_detected=self.handle_nfc_error_received
+            #)
+            #self.nfc_monitor = CardMonitor()
+            #self.nfc_monitor.addObserver(self.nfc_observer)
+            #self.set_global_noti("NFC 리더기 서비스 작동 중. 대상 회차를 선택하고 태그하세요.", "success")
+
+            
+            #self.reader_manager = ReaderManager(self.controller, ui_callback=self.set_global_noti("NFC 멀티 서비스 작동 시작"))
+            #self.reader_manager.start_all_readers()
+            # ==================================================================
+            # [🔥 치명적 교정]: 함수의 실행 결과(None)가 아니라, 함수 주소(참조) 자체를 전달해야 합니다.
+            # ==================================================================
+            self.reader_manager = ReaderManager(controller=self.controller, ui_callback=self.set_global_noti)
+            
+            # 초기 기동 성공 알림 알리기
+            self.set_global_noti("NFC 멀티 관제 서비스가 성공적으로 작동 시작되었습니다.", "success")
+            self.reader_manager.start_all_readers()
+
         except Exception as e:
             err_msg = str(e)
             self.after(0, lambda msg=err_msg: self.set_global_noti(f"NFC 서비스 초기화 실패 (리더기 연결 확인): {msg}", "error"))
-     
+            print((f"NFC 서비스 초기화 실패 (리더기 연결 확인): {err_msg}", "error"))
     def handle_nfc_error_received(self, error_msg):
         self.after(0, lambda msg=error_msg: self.set_global_noti(f"⚠️ 하드웨어 에러: {msg}", "error") )      
 
@@ -312,8 +326,8 @@ class TodayOperationsApp(tk.Frame):
 
     def on_close_window(self):
         try:
-            if self.nfc_monitor and self.nfc_observer:
-                self.nfc_monitor.deleteObserver(self.nfc_observer)
+            if self.reader_manager:
+                self.reader_manager.stop_all_readers()
         except:
             pass
         self.destroy()

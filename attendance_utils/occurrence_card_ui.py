@@ -156,13 +156,20 @@ class OccurrenceCardUi(tk.LabelFrame):
         root_app = self.winfo_toplevel()
         target_app = self.find_today_operations_app()
         
-        if target_app and hasattr(target_app, 'selected_occurrence_id'):
+        # [교정 완료]: 명시적 타입 결여 문제를 타파하기 위해 안전한 내장 getattr/setattr 추적 문법 도입
+        if target_app:
             setattr(target_app, 'selected_occurrence_id', self.id)
+            # 안전한 getattr 조회를 활용하여 객체 멤버의 존재 여부를 검증하므로 정적 린터 오류가 발생하지 않음 [cite: 57]
+            rm = getattr(target_app, 'reader_manager', None)
+            if rm is not None and hasattr(rm, 'set_occurrence_id'):
+                rm.set_occurrence_id(self.id)
         elif root_app:
             setattr(root_app, 'selected_occurrence_id', self.id)
+            rm = getattr(root_app, 'reader_manager', None)
+            if rm is not None and hasattr(rm, 'set_occurrence_id'): 
+                rm.set_occurrence_id(self.id) 
 
-        self.set_global_noti(f"🎯 선택 완료: [{self.item.get('events', {}).get('name', '')}] 회차가 지정되었습니다. NFC 카드를 태그해 주세요.", "success")
-
+        self.set_global_noti(f"🎯 선택 완료: [{self.item.get('events', {}).get('name', '')}] 회차가 지정되었습니다. 복수의 NFC 리더기 어디든 카드를 태그해 주세요.", "success")
     def set_active_style(self):
         if not self.winfo_exists(): return
         self.config(relief="solid", bd=2)

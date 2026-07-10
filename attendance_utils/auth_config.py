@@ -1,3 +1,4 @@
+#NFC_Attendance_Client\attendance_utils\auth_config.py
 import requests
 import threading
 from typing import Optional  # Optional 타입 힌트 추가

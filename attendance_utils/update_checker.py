@@ -1,3 +1,4 @@
+#NFC_Attendance_Client\attendance_utils\update_checker.py
 import requests
 import threading
 import webbrowser
