@@ -1,5 +1,4 @@
 #user_service.py
-import time
 from tkinter import messagebox
 from attendance_utils.nfc_reader_manager import ReaderManager
 
