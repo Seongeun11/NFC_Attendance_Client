@@ -24,7 +24,7 @@ class ReaderWorker(threading.Thread):
 
     def run(self):
        
-        print(f"[Worker 시작] 리더기 감시 작동 중: {self.reader_name}")
+        #print(f"[Worker 시작] 리더기 감시 작동 중: {self.reader_name}")
         
         while self.running:
             connection = None
@@ -49,7 +49,7 @@ class ReaderWorker(threading.Thread):
                         connection.disconnect()
                         continue
                         
-                    print(f"[{self.reader_name}] 카드 감지 성공 -> UID: {nfc_uid}")
+                    #print(f"[{self.reader_name}] 카드 감지 성공 -> UID: {nfc_uid}")
                     
                     # 큐에 카드 정보와 함께 리더기 객체 주소(참조)를 함께 넘겨주어
                     # 소비자가 처리에 성공했을 때만 워커의 쿨다운을 갱신할 수 있도록 논리적 징검다리 마련
@@ -72,14 +72,14 @@ class ReaderWorker(threading.Thread):
                 
             except SmartcardException as cse:
                 # 리더기 연결 선 유실 등 하드웨어 통신 장애 상황 예외 처리
-                print(f"⚠️ [{self.reader_name}] 하드웨어 통신 일시 오류: {str(cse)}")
+                #print(f"⚠️ [{self.reader_name}] 하드웨어 통신 일시 오류: {str(cse)}")
                 time.sleep(2.0) # 장애 발생 시 대기 시간을 늘려 시스템 안정 도모
                 
             except Exception as e:
-                print(f"🛑 [{self.reader_name}] 예기치 못한 스레드 오류: {str(e)}")
+                #print(f"🛑 [{self.reader_name}] 예기치 못한 스레드 오류: {str(e)}")
                 time.sleep(1.0)
 
-        print(f"[Worker 종료] 리더기 감시 중단: {self.reader_name}")
+        #print(f"[Worker 종료] 리더기 감시 중단: {self.reader_name}")
 
 
 # ======================================================================
@@ -103,7 +103,7 @@ class ReaderManager:
                 self.ui_callback(f"[UI 콜백 실행 실패]: {str(e)} | 메시지: {message}")
         else:
             # UI 콜백 함수가 유실(None)되었을 때 프로그램이 죽지 않도록 콘솔 로그로 Fallback 처리
-            print(f"[{status_type.upper()}] {message}")
+            self.ui_callback(f"[{status_type.upper()}] {message}")
 
     def set_occurrence_id(self, occurrence_id):
         self.occurrence_id = occurrence_id
