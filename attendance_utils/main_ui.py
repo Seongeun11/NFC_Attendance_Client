@@ -2,18 +2,22 @@
 import tkinter as tk
 import tkinter.ttk as ttk
 import threading
-
+from typing import Optional, Callable  # 타입 힌팅을 위해 임포트
 from attendance_utils.today_operations_app import TodayOperationsApp
-
+from attendance_utils.nfc_reader_manager import ReaderManager # <- 실제 경로에 맞게 확인해주세요.
 class MainFrame(tk.Frame):
     def __init__(self, parent, on_search_click, on_register_click, on_delete_click):
         super().__init__(parent)
         self.parent = parent
         self.controller = None  # app.py 등에서 동적으로 바인딩받을 변수
+
+        # 💡 [Pylance 에러 치유 1] reader_manager가 ReaderManager 객체 혹은 None을 가질 수 있음을 명시
+        self.reader_manager: Optional[ReaderManager] = None
         # 주입받은 콜백 함수들을 인스턴스 변수로 저장하여 내부에서 유연하게 호출할 수 있도록 함
         self.on_search_click = on_search_click
         self.on_register_click = on_register_click
         self.on_delete_click = on_delete_click
+        self.reader_manager = None # NfcApp에서 주입받을 변수 명시
         
         # 출석 대시보드 전체 UI프레임이 내장되므로 가로/세로를 충분히 넓혀줍니다.
         self.parent.title("NFC 관리자 통합 대시보드")
@@ -99,7 +103,21 @@ class MainFrame(tk.Frame):
 
         # 탭이 클릭되어 전환될 때 실시간 동기화 호출용 바인딩
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_switched)
-        
+    # 💡 [핵심 에러 해결]: unknown 오류가 났던 메서드를 명시적으로 구현합니다.
+    def update_reader_manager_status(self, message: str, status_type: str = "info"):
+        """ ReaderManager(백그라운드 스레드)에서 전달된 하드웨어 통신 로그 및 
+            서버 응답 결과를 메인 UI 스레드에서 안전하게 새로고침합니다. """
+        color = "blue"
+        if status_type == "error": 
+            color = "#b91c1c"  # 빨간색 (에러)
+        elif status_type == "success": 
+            color = "green"    # 초록색 (성공)
+        elif status_type == "info":
+            color = "blue"     # 파란색 (진행 중)
+
+        # Tkinter는 메인 스레드가 아닌 곳에서 위젯을 직접 건드리면 깨지므로 after() 사용
+        if hasattr(self, 'status_log') and self.status_log.winfo_exists():
+            self.parent.after(0, lambda: self.status_log.config(text=message, fg=color))    
     # 카드 등록 모드를 명시적으로 취소하는 메서드
     def cancel_registration_mode(self, reason_text=""):
         # 컨트롤러(NfcApp) 측에 등록 대기 중인 사용자 타겟 정보를 리셋 요청
@@ -138,6 +156,7 @@ class MainFrame(tk.Frame):
         """NFC 카드 등록 버튼을 클릭했을 때의 트리거"""
         # 기존 등록 로직 실행 (NfcApp.register)
         if self.on_register_click:
+            
             self.on_register_click()
 
     def link_controller(self, controller):
@@ -167,12 +186,42 @@ class MainFrame(tk.Frame):
                 pass
 
     def on_tab_switched(self, event):
-        """사용자가 '출석 현황 대시보드' 탭을 활성화할 때마다 최신 출석 리스트를 백엔드와 강제 동기화"""
+        """ 사용자가 탭을 전환할 때 각 탭의 기능을 분리하고 하드웨어 모드를 스위칭합니다 """
         try:
-            selected_title = self.notebook.tab(self.notebook.select(), "text").strip()
-            if "출석" in selected_title:
-                #print("[이벤트] 출석 대시보드 탭 감지 - 최신 DB 동기화 스레드 가동")
-                # 무거운 Supabase 통신으로 인한 UI 멈춤 방지를 위해 데몬 스레드로 새로고침 처리
-                threading.Thread(target=self.safe_refresh_dashboard, daemon=True).start()
-        except Exception:
-            pass
+            selected_tab_index = self.notebook.index(self.notebook.select())
+            attendance_frame = getattr(self, 'attendance_app_frame', None)
+            
+            # 이제 명확하게 인스턴스가 주입되므로 정상 참조됩니다.
+            main_reader_mgr = self.reader_manager 
+            attendance_reader_mgr = getattr(attendance_frame, 'reader_manager', None) if attendance_frame else None
+            
+            if selected_tab_index == 0:
+                # [A] 등록 및 해지 탭 활성화
+                if main_reader_mgr is not None:
+                    main_reader_mgr.set_active_mode("REGISTRATION")
+                if attendance_reader_mgr is not None:
+                    attendance_reader_mgr.set_active_mode("NONE")
+                
+                self.status_log.config(text="카드 등록 모드가 활성화되었습니다. 리스트 선택 후 카드를 태그해주세요.", fg="blue")
+
+            elif selected_tab_index == 1:
+                # [B] 출석 현황 대시보드 탭 활성화
+                if main_reader_mgr is not None:
+                    main_reader_mgr.set_active_mode("NONE")
+                
+                if hasattr(self, 'cancel_registration_mode'):
+                    self.cancel_registration_mode("출석 대시보드로 이동하여 카드 등록 프로세스가 종료되었습니다.")
+                
+                # 대시보드 내부 리더 매니저 혹은 통합 매니저를 ATTENDANCE 모드로 전환
+                if main_reader_mgr is not None:
+                    main_reader_mgr.set_active_mode("ATTENDANCE")
+                if attendance_reader_mgr is not None:
+                    attendance_reader_mgr.set_active_mode("ATTENDANCE")
+                
+                if hasattr(self, 'safe_refresh_dashboard'):
+                    threading.Thread(target=self.safe_refresh_dashboard, daemon=True).start()
+                    
+                self.status_log.config(text="출석 관리 모드가 활성화되었습니다.", fg="green")
+                
+        except Exception as e:
+            print(f"[탭 전환 오류 고유번호 점검] {e}", flush=True)

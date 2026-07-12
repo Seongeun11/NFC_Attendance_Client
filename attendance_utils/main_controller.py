@@ -6,6 +6,7 @@ from attendance_utils.main_ui import MainFrame
 from attendance_utils.user_service import AuthService, UserSearchService, NfcCardService
 from attendance_utils.dashboard_controller import AttendanceController
 from attendance_utils.auth_config import SupabaseGlobalContext
+from attendance_utils.nfc_reader_manager import ReaderManager
 from attendance_utils.update_checker import check_for_updates_async
 
 class NfcApp:
@@ -22,8 +23,16 @@ class NfcApp:
 
         self.refresh_services_context()
         # 첫 화면인 로그인 화면 띄우기
+        # [교정] ReaderManager를 앱 수준에서 생성 (UI 콜백은 메인 프레임 생성 후 바인딩)
+        # 여기서는 임시로 로그 출력 형태나 안전한 함수를 할당하고, 메인 프레임이 나오면 교체합니다.
+        self.reader_manager = ReaderManager(self, self._nfc_default_log)
+        self.reader_manager.start_all_readers() # 리더기 관제 스레드 가동
 
         self.show_main_frame()
+
+    def _nfc_default_log(self, message, status_type="info"):
+        print(f"[{status_type.upper()}] {message}", flush=True)
+
     def refresh_services_context(self):
         """ Vercel 로그인이 완료된 최신 싱글톤 클라이언트를 가져와서 모든 서비스 레이어에 동적으로 강제 동기화합니다. """
         # 실시간으로 가장 최신의 Vercel 세션 검증 완료된 클라이언트를 수신
@@ -52,6 +61,14 @@ class NfcApp:
             on_delete_click=self.delete_user,
         )
         self.current_frame.pack(fill="both", expand=True)
+
+        # 💡 [Pylance 안전장치] current_frame이 정상적으로 생성되었는지 검증 후 주입
+        if self.current_frame is not None:
+            self.current_frame.reader_manager = self.reader_manager
+            
+            # 메서드가 존재하는지 검사하거나, 위에서 추가했으므로 바로 바인딩
+            self.reader_manager.ui_callback = self.current_frame.update_reader_manager_status
+            
         # 전역에서 관리 중인 controller(AttendanceController) 인스턴스를 주입하여 탭2 화면을 갱신합니다.
         if hasattr(self, "controller") and self.controller:
             self.current_frame.link_controller(self.controller)
@@ -67,7 +84,9 @@ class NfcApp:
     ############################################
     # 기능 구현 (컨트롤러 로직)
     ############################################
-
+    # ReaderManager가 REGISTRATION 모드일 때 호출할 비즈니스 로직을 구현합니다.
+    
+        
     # 💡 파라미터 맨 뒤에 selected_dept="전체" 기본값 추가 
     def search_user(self, keyword, only_registered=False, only_active=False, selected_dept="전체"):
         if self.current_frame is None: return
@@ -209,23 +228,39 @@ class NfcApp:
                 
             index = selected[0]
             if not self.db_users: return
-            target = self.db_users[index]
+            #하드웨어 스레드를 새로 열지 않고, 현재 선택된 대상을 상태 변수에 저장
+            self.current_target = self.db_users[index]
             
-            self.current_frame.status.config(text=f"{target.get('full_name', '')} 카드 태그 대기 중...", fg="blue")
+            self.current_frame.status.config(text=f"{self.current_target.get('full_name', '')} 카드 태그 대기 중...", fg="blue")
             self.current_frame.status_log.config(text=f"NFC CardMonitor 서비스를 시작합니다.")
 
             # 백그라운드 리더기 가동 서비스 실행 (비동기 데몬 스레드로 시작)
             # 중요: 하드웨어 스레드 안에서 발생한 결과를 UI에 안전하게 반영하기 위해 콜백 함수를 같이 넘깁니다.
-            threading.Thread(
-                target=self.card_service.start_hardware_monitor, 
-                args=(target, self._nfc_hardware_status_listener), 
-                daemon=True
-            ).start()
+            #threading.Thread(
+            #    target=self.card_service.start_hardware_monitor, 
+            #    args=(target, self._nfc_hardware_status_listener), 
+            #    daemon=True
+            #).start()
 
         except Exception as e:
             print(f"[register 함수 에러 발생]: {str(e)}", flush=True)
 
-
+# 💡 [핵심 추가]: ReaderManager가 REGISTRATION 모드일 때 카드 감지 시 호출할 라우터 메서드
+    def process_registration(self, task_data):
+        """ ReaderManager 루프에서 카드가 인식되면 이쪽으로 데이터를 토스합니다. """
+        uid = task_data.get("uid")
+        
+        if not self.current_target:
+            return {"status": "FAILED", "message": "선택된 등록 대상자가 없습니다. 리스트에서 먼저 선택해주세요."}
+        
+        # 기존에 잘 완성되어 있던 process_card 연동 실행
+        success = self.process_card(self.current_target, uid)
+        
+        if success:
+            return {"status": "SUCCESS", "message": f"[{self.current_target.get('full_name')}] 등록 성공!"}
+        else:
+            return {"status": "FAILED", "message": "등록 실패 (중복 카드 혹은 세션 만료)"}
+        
     def process_card(self, target, uid):
         if self.current_frame is None: return False
         # --- [안전장치] 현재 선택해서 대기 중인 사용자가 아니면 이전 스레드의 응답이므로 무시합니다 ---
