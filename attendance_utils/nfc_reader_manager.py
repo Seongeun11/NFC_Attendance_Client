@@ -118,6 +118,8 @@ class ReaderManager:
         self.occurrence_id = occurrence_id
         self._safe_ui_callback(f"[ReaderManager] 타겟 출석 회차 변경 설정 완료 -> ID: {self.occurrence_id}")
         
+        
+
         # [자가 치유 논리 2단계 보강]: ui_callback의 바인딩된 객체(App)를 추적하여 상위 계층의 controller를 강제 동기화
         if self.controller is None and self.ui_callback and hasattr(self.ui_callback, '__self__'):
             try:
@@ -133,6 +135,32 @@ class ReaderManager:
                      print("🎯 [ReaderManager] 런타임에 유실된 Controller를 완벽히 감지하여 자가 복구했습니다.")
             except Exception as bind_err:
                 self._safe_ui_callback(f"컨트롤러 동적 바인딩 복구 실패: {str(bind_err)}", "error")
+
+        # ======================================================================
+        # 💡 [교정 단계 2]: 모드 판별 및 의존성 방어 코드 삽입
+        # ======================================================================
+        # 카드 등록 모드이거나 예약어 상태일 때는 무거운 출석 캐시 빌드를 건너뜁니다.
+        if self.current_mode == "REGISTRATION" or self.occurrence_id == "CARD_REGISTRATION_MODE":
+            print("[ReaderManager] 카드 등록 모드이므로 출석 로컬 캐시 빌드를 건너뜁니다.")
+            return
+
+        # 복구 시도 후에도 컨트롤러가 없거나, 캐시 빌드 메서드가 없는 Mock 컨트롤러인 경우 방어
+        if self.controller is None or not hasattr(self.controller, 'initialize_local_cache'):
+            print("⚠️ [경고] 유효한 출석 Controller가 지정되지 않아 실시간 DB 모드로 작동합니다.")
+            return
+
+        # ======================================================================
+        # 💡 [교정 단계 3]: 모든 방어막을 통과한 뒤 안전하게 캐시 빌드 호출
+        # ======================================================================
+        print("🔄 출석 체크를 위한 로컬 캐시를 빌드 중입니다...")
+        try:
+            cache_success = self.controller.initialize_local_cache(self.occurrence_id)
+            if not cache_success:
+                print("⚠️ 캐시 초기화 실패: 실시간 서버 조회 모드로 동작합니다. (태그 속도가 느려질 수 있음)")
+            else:
+                print("✅ 로컬 캐시 로드 완료! 고속 NFC 출석 준비가 되었습니다.")
+        except Exception as cache_err:
+            print(f"🛑 캐시 실행 중 예외 발생 (실시간 모드 전환): {str(cache_err)}")
 
     def start_all_readers(self):
         self.running = True
@@ -230,6 +258,7 @@ class ReaderManager:
                                 self.controller.main_app.after(0, self.controller.main_app.refresh_selected_card_data)
                         except Exception as db_err:
                             self._safe_ui_callback(f"🛑 Supabase DB 출석 통신 실패: {str(db_err)}", "error")
+                            print(f"🛑 Supabase DB 출석 통신 실패: {str(db_err)}", "error")
                     else:
                         self._safe_ui_callback("🛑 [설계 오류] 출석용 Controller 혹은 process_nfc_attendance 메서드가 없습니다.", "error")
                 

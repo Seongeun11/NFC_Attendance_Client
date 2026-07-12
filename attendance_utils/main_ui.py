@@ -103,6 +103,7 @@ class MainFrame(tk.Frame):
 
         # 탭이 클릭되어 전환될 때 실시간 동기화 호출용 바인딩
         self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_switched)
+
     # 💡 [핵심 에러 해결]: unknown 오류가 났던 메서드를 명시적으로 구현합니다.
     def update_reader_manager_status(self, message: str, status_type: str = "info"):
         """ ReaderManager(백그라운드 스레드)에서 전달된 하드웨어 통신 로그 및 
